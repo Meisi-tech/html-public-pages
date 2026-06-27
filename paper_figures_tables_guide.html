@@ -1,0 +1,175 @@
+<style>
+.wrap{padding:0.5rem 0}
+.toc{display:flex;flex-wrap:wrap;gap:8px;margin-bottom:1.5rem}
+.toc-btn{font-size:12px;padding:5px 12px;border-radius:20px;border:0.5px solid var(--border-strong);background:transparent;color:var(--text-secondary);cursor:pointer;transition:all .15s}
+.toc-btn.active{background:var(--bg-accent);color:var(--text-accent);border-color:var(--border-accent)}
+.fig-card{background:var(--surface-1);border:0.5px solid var(--border);border-radius:12px;padding:1.25rem 1.5rem;margin-bottom:1rem}
+.fig-header{display:flex;align-items:flex-start;gap:12px;margin-bottom:12px}
+.fig-badge{flex-shrink:0;font-size:11px;font-weight:500;padding:4px 10px;border-radius:20px}
+.badge-fig{background:#E6F1FB;color:#0C447C}
+.badge-tab{background:#EAF3DE;color:#27500A}
+.badge-sup{background:#F1EFE8;color:#444441}
+.fig-title{font-size:15px;font-weight:500;color:var(--text-primary);margin:0}
+.fig-subtitle{font-size:12px;color:var(--text-muted);margin:2px 0 0}
+.fig-body{font-size:13px;color:var(--text-secondary);line-height:1.7;margin:0 0 12px}
+.subfig-list{display:flex;flex-direction:column;gap:8px}
+.subfig{background:var(--surface-2);border-left:3px solid var(--border-accent);border-radius:0;padding:8px 12px}
+.subfig-label{font-size:12px;font-weight:500;color:var(--text-accent);margin-bottom:3px}
+.subfig-desc{font-size:12px;color:var(--text-secondary);line-height:1.6;margin:0}
+.key-box{background:var(--bg-success);border-radius:8px;padding:8px 12px;font-size:12px;color:var(--text-success);margin-top:10px}
+.hidden{display:none}
+.section-label{font-size:11px;font-weight:500;color:var(--text-muted);letter-spacing:.04em;text-transform:uppercase;margin:1.5rem 0 0.5rem;padding-bottom:4px;border-bottom:0.5px solid var(--border)}
+</style>
+
+<div class="wrap">
+<div class="toc" id="toc"></div>
+<div id="content"></div>
+</div>
+
+<script>
+const data = [
+  {
+    id:'fig1', badge:'fig', label:'Figure 1', type:'正文图',
+    title:'研究设计流程图',
+    subtitle:'Study flow chart · 论文"封面图"',
+    body:'这是整篇论文的"地图"，一张图把整个研究的逻辑串联起来。读者拿到论文先看这张图，就能在2分钟内理解论文做了什么。',
+    subfigs:[
+      {label:'数据来源', desc:'展示三个队列的纳入流程：建模队列789例（单中心）、地理外部验证队列394例（多中心）、时间外部验证队列185例（2023年以后）'},
+      {label:'方法流程', desc:'从左到右呈现：特征选择（4种方法）→ 15种ML模型比较 → 随机森林最优 → 三层分析（SHAP/PDP可解释性、DiCE反事实、DML/T-learner因果推断）→ Web工具部署'},
+      {label:'缩写图例', desc:'图下方列出所有缩写含义：ML、ROC、SHAP、PDP、DiCE、PR curve、DML，帮助读者快速对照理解'}
+    ],
+    key:'这张图的价值：审稿人5秒内就能看懂研究框架，是论文给评审的第一印象，设计清晰则整体加分。'
+  },
+  {
+    id:'fig2', badge:'fig', label:'Figure 2', type:'正文图',
+    title:'特征选择与模型性能比较',
+    subtitle:'Feature selection + model comparison · 三个子图',
+    body:'解决"用哪些变量"和"用哪个模型"两个核心问题，是后续一切分析的基础。',
+    subfigs:[
+      {label:'Fig 2a — Boruta特征重要性脊线图', desc:'横轴是变量，纵轴是重要性分布，每个变量显示为一条"山脊"形状的概率密度。经500次迭代后：13个变量被确认重要（绿色），2个标记为"可能重要"（黄色），其余剔除。核心作用：直观展示哪些变量在统计上稳定重要。'},
+      {label:'Fig 2b — 四方法交集韦恩图', desc:'四个圆圈分别代表Boruta、LASSO、RF-RFE、遗传算法，中间重叠区域就是9个最终特征。韦恩图一眼就能看出"四种方法都认为重要"的变量，比单方法选择更可信，体现了特征选择的稳健性。'},
+      {label:'Fig 2c — 15种ML模型AB_score气泡图', desc:'横轴是模型名称，纵轴是AB_score（综合AUROC和AUPRC的复合评分），气泡大小可能代表另一维度指标。随机森林气泡最高（0.929），清晰地展示了为何选RF而不是其他模型，让"最优模型选择"有数据支撑而非主观决定。'}
+    ],
+    key:'这三张子图共同完成了"从26个变量 → 9个变量 → 最优模型"的论证链条。'
+  },
+  {
+    id:'fig3', badge:'fig', label:'Figure 3', type:'正文图',
+    title:'建模队列和地理外部验证队列的模型性能评估',
+    subtitle:'Model evaluation · 六个子图全面评估',
+    body:'最重量级的评估图，用6个子图从不同角度证明模型好不好、可靠不可靠。这部分决定论文能不能发顶刊。',
+    subfigs:[
+      {label:'Fig 3a — ROC曲线', desc:'横轴假阳性率，纵轴真阳性率，曲线越贴近左上角越好。内部验证AUROC=0.949，地理验证AUROC=0.930，两条曲线高度重叠说明模型泛化性强，换了医院依然有效。'},
+      {label:'Fig 3b — 精确率-召回率曲线（PR曲线）', desc:'对类别不平衡（并发症率约26%）更敏感的评估指标。内部AUPRC=0.880，验证集0.870，AUPRC高说明模型在阳性样本稀少的情况下仍能准确识别高风险患者，避免漏诊。'},
+      {label:'Fig 3c — 决策曲线分析（DCA）', desc:'横轴是医生设定的"风险阈值"，纵轴是净获益。曲线高于"全部干预"和"全不干预"基线，说明在任何合理的风险阈值下，使用此模型都比不用模型或全部预防干预更划算，有真实临床价值。'},
+      {label:'Fig 3d — 校准曲线', desc:'横轴是模型预测概率，纵轴是实际观察到的概率，理想情况下两者应沿对角线分布。图中显示整体校准良好，但在高风险端（预测概率>0.7）有轻微过估计——说明模型对极高风险患者偏"悲观"，实际风险比预测略低。'},
+      {label:'Fig 3e — 亚组判别性能（AUROC森林图样式）', desc:'按年龄(<40岁 vs ≥40岁)和性别(男 vs 女)分层展示AUROC，最低仍达0.927，虚线代表整体AUROC均值。证明模型不只在整体上好，对老年男性这类"难预测"亚组也同样有效。'},
+      {label:'Fig 3f — 亚组校准性能（O/E比值森林图）', desc:'O/E比（观测/预期）反映各亚组的校准性，值越接近1越好，整体O/E=1.16（95% CI: 0.97–1.40），置信区间跨越1.0说明无统计显著偏差。图中各亚组均无显著预测偏差，证明模型公平性。'}
+    ],
+    key:'6个子图形成完整的"铁三角"证据：判别好（ROC/PR）+ 有临床价值（DCA）+ 预测准确（校准）+ 各人群公平（亚组），缺一不可。'
+  },
+  {
+    id:'fig4', badge:'fig', label:'Figure 4', type:'正文图',
+    title:'最终模型的时间外部验证',
+    subtitle:'Temporal validation · 四个子图',
+    body:'地理验证证明模型跨地点有效，时间验证证明模型跨时间有效（未来的新患者也适用）。两种验证都通过才是真正的强模型。',
+    subfigs:[
+      {label:'Fig 4a — 雷达图（五指标综合评估）', desc:'五边形雷达图，五个顶角分别是AUROC、AUPRC、准确率、敏感性、特异性，多边形越大越好。时间验证集AUROC=0.932，准确率=0.838，雷达图直观显示各项指标均衡，无明显短板。'},
+      {label:'Fig 4b — 校准曲线（时间验证集）', desc:'与Fig 3d类似，但用的是2023年以后的新患者数据。曲线紧贴对角线理想线，说明即使对"未来患者"预测概率也准确，消除了"过拟合于历史数据"的疑虑。'},
+      {label:'Fig 4c — 决策曲线分析（时间验证集）', desc:'在时间验证集上重复DCA，结论与Fig 3c一致：模型净获益优于全治或全不治策略，临床价值在新时间段依然成立。'},
+      {label:'Fig 4d — 亚组气泡图', desc:'X轴是AUROC，Y轴是不同亚组（年龄×性别组合），气泡大小=样本量，颜色深浅=预测准确率（越浅越高），气泡内数字=样本量。一张图同时传达了四维信息，所有亚组AUROC均>0.9、准确率>0.8，说明时间迁移后模型在各类患者中都稳定有效。'}
+    ],
+    key:'时间验证是很多临床ML论文的短板，本文专门设了独立验证队列并用4个子图全面展示，是质量高于普通论文的重要体现。'
+  },
+  {
+    id:'fig5', badge:'fig', label:'Figure 5', type:'正文图',
+    title:'可解释性分析与因果推断',
+    subtitle:'Interpretability + causal inference · 论文最核心的六个子图',
+    body:'这是全文学术价值最高的一张大图，把可解释性（SHAP/PDP）、反事实解释（DiCE）、因果推断（DML/T-learner）的结果全部呈现，是本文区别于普通预测模型论文的核心所在。',
+    subfigs:[
+      {label:'Fig 5a — SHAP蜂群摘要图（全局特征重要性）', desc:'每个点代表一个患者，X轴是SHAP值（正=增加风险，负=降低风险），颜色红=高特征值、蓝=低特征值，点云越宽说明影响越大。手术时长、颅骨缺损面积、GCS排名前三；负压引流和钛网为蓝色聚集在负值区，说明"使用"这两项操作降低了模型预测风险。'},
+      {label:'Fig 5b — SHAP交互热图（特征交互效应）', desc:'矩阵热图，颜色越深代表两个变量之间的交互效应越强。对角线是各变量自身的主效应，颅骨缺损面积、GCS、手术时长三者自交互最强，说明这三个变量不仅独立影响结局，彼此之间还有协同作用（例如手术时间长+缺损面积大→风险叠加放大）。'},
+      {label:'Fig 5c — 三维偏依赖图（3D PDP）', desc:'X轴=手术时长，Y轴=颅骨缺损面积，Z轴（颜色）=预测并发症概率，颜色越浅风险越高。可以同时看到两个变量对预测的联合效应：低GCS+大缺损面积→高风险，且这个效应在手术时间长时更加显著。比普通1D PDP提供了更丰富的交互信息。'},
+      {label:'Fig 5d — DiCE反事实解释雷达图', desc:'雷达图展示两个反事实方案（CF1和CF2），每个轴是一个特征，实线=原始患者，虚线=反事实患者。通过对比轴上数值的差异，直观显示"只需改变负压引流使用/手术材料其中之一，就能把预测从高风险翻转为低风险"，提供可执行的临床干预建议。'},
+      {label:'Fig 5e — ATE柱状图（双重机器学习结果）', desc:'两根柱子分别代表负压引流（ATE=−0.241）和钛网（ATE=−0.191）的平均处理效应，柱子上方显示95%置信区间。两个置信区间均不跨越0，说明因果效应在统计上显著，不是偶然发现。这是从"预测相关"升级到"因果证据"的关键结果。'},
+      {label:'Fig 5f — CATE小提琴图（个体异质性因果效应）', desc:'按年龄(<40 vs ≥40)和性别(男 vs 女)四个亚组分别展示CATE分布，小提琴形状越宽说明该取值的患者越多。大多数亚组的CATE<0（保护效应），但"40岁以上男性"亚组中负压引流CATE略>0（均值=0.009），提示该亚组可能无保护获益——这是个体化医疗的重要发现。'}
+    ],
+    key:'6个子图层层递进：SHAP解释相关性 → PDP展示非线性 → DiCE给出干预方案 → DML验证因果 → CATE识别个体差异，构成完整的从关联到因果的证据链。'
+  },
+  {
+    id:'tab1', badge:'tab', label:'Table 1', type:'正文表',
+    title:'三个队列的患者基线临床特征',
+    subtitle:'Clinical baseline characteristics · 论文必备基线表',
+    body:'临床ML论文的"标配表"，证明三个队列的患者构成是否可比，也说明了数据质量。',
+    subfigs:[
+      {label:'内容结构', desc:'行=各临床变量（年龄、性别、GCS、手术时长、材料选择、并发症率等），列=三个队列（建模队列/地理验证/时间验证），最后一列是P值（检验三组间差异是否显著）'},
+      {label:'核心作用一：可比性验证', desc:'若三队列基线特征基本相似（P>0.05），说明外部验证集与建模集人群相似，模型外推是合理的；若有差异，则需讨论是否影响泛化'},
+      {label:'核心作用二：数据透明', desc:'审稿人通过此表判断：样本量是否足够、并发症率（约26-29%）是否与现实一致、是否有明显的数据质量问题'}
+    ],
+    key:'这张表没有高深技术，但它是论文可信度的基石——数据不透明的ML论文很难在顶刊发表。'
+  },
+  {
+    id:'sup', badge:'sup', label:'补充图表 (Figs S1–S16)', type:'补充材料',
+    title:'补充材料核心内容速览',
+    subtitle:'Supplementary figures · 关键补充图解读',
+    body:'正文篇幅有限，大量细节放在补充材料中。以下是其中几个关键补充图的意义。',
+    subfigs:[
+      {label:'Fig S6 — LASSO/RF-RFE/GA特征选择过程图', desc:'展示Fig 2中另外三种特征选择方法的详细过程（正文只展示了Boruta），让读者看到四种方法选择变量的具体细节，证明交集选择的严谨性'},
+      {label:'Fig S7 — 9个最终特征的分布图', desc:'9张箱线图或直方图，分别展示每个特征在并发症组vs无并发症组中的分布差异，帮助读者理解为何这些变量被选中，是数据探索的直觉展示'},
+      {label:'Figs S8–S10 — 各并发症专项模型的评估', desc:'正文第4节提到针对感染、积液、颅内出血等7种具体并发症各建了专项模型，补充图展示这些模型各自的ROC曲线、DCA、SHAP图，体现工作量和完整性'},
+      {label:'Figs S11–S12 — SHAP个体解释图', desc:'包括force plot（力图）、decision plot（决策图）、waterfall plot（瀑布图），针对具体患者案例展示SHAP如何逐步从基础值出发，叠加每个变量的贡献，最终给出预测，是个体化解释的直觉呈现'},
+      {label:'Fig S13 — 1D偏依赖图（PDP）', desc:'正文Fig 5c展示了3D PDP，这里展示各变量的1D PDP曲线，例如手术时长PDP曲线在4小时后陡升，DC-CP间隔PDP呈U形，是发现临床阈值的重要工具'},
+      {label:'Figs S14–S16 — Web工具界面截图和通用平台', desc:'S14展示了8个预测模块的Web界面，S15展示具体输入输出页面，S16是他们做的通用手术并发症预测平台（可推广到其他术种），这三张图体现了研究的临床转化和方法推广价值'}
+    ],
+    key:'补充材料不是"垃圾桶"，顶刊论文的补充图往往比正文还丰富，反映了团队的真实工作量和严谨程度。'
+  }
+];
+
+const cats = [
+  {key:'all', label:'全部'},
+  {key:'fig', label:'正文图 (Fig 1–5)'},
+  {key:'tab', label:'正文表 (Table 1)'},
+  {key:'sup', label:'补充材料'}
+];
+
+let active = 'all';
+
+function renderToc(){
+  document.getElementById('toc').innerHTML = cats.map(c=>
+    `<button class="toc-btn${active===c.key?' active':''}" onclick="filter('${c.key}')">${c.label}</button>`
+  ).join('');
+}
+
+function renderContent(){
+  const items = active==='all' ? data : data.filter(d=>d.badge===active);
+  document.getElementById('content').innerHTML = items.map(d=>`
+    <div class="fig-card">
+      <div class="fig-header">
+        <span class="fig-badge badge-${d.badge}">${d.label}</span>
+        <div>
+          <div class="fig-title">${d.title}</div>
+          <div class="fig-subtitle">${d.subtitle}</div>
+        </div>
+      </div>
+      <p class="fig-body">${d.body}</p>
+      <div class="subfig-list">
+        ${d.subfigs.map(s=>`
+          <div class="subfig">
+            <div class="subfig-label">${s.label}</div>
+            <p class="subfig-desc">${s.desc}</p>
+          </div>
+        `).join('')}
+      </div>
+      ${d.key?`<div class="key-box">核心价值：${d.key}</div>`:''}
+    </div>
+  `).join('');
+}
+
+function filter(key){
+  active = key;
+  renderToc();
+  renderContent();
+}
+
+renderToc();
+renderContent();
+</script>
