@@ -1,0 +1,425 @@
+<style>
+.gallery{padding:.5rem 0}
+.seg{display:flex;gap:8px;margin-bottom:1.5rem;flex-wrap:wrap}
+.seg-btn{font-size:12px;padding:5px 14px;border-radius:20px;border:.5px solid var(--border-strong);background:transparent;color:var(--text-secondary);cursor:pointer;transition:all .15s}
+.seg-btn.on{background:var(--bg-accent);color:var(--text-accent);border-color:var(--border-accent)}
+.grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(300px,1fr));gap:16px}
+.card{background:var(--surface-1);border:.5px solid var(--border);border-radius:12px;overflow:hidden}
+.card-preview{background:var(--surface-2);border-bottom:.5px solid var(--border);padding:16px 20px;min-height:160px;display:flex;align-items:center;justify-content:center}
+.card-body{padding:14px 16px}
+.card-tag{display:inline-block;font-size:11px;padding:2px 9px;border-radius:20px;font-weight:500;margin-bottom:6px}
+.tag-cf{background:#FAECE7;color:#712B13}
+.tag-causal{background:#EAF3DE;color:#27500A}
+.card-name{font-size:14px;font-weight:500;color:var(--text-primary);margin:0 0 4px}
+.card-desc{font-size:12px;color:var(--text-secondary);line-height:1.6;margin:0 0 8px}
+.card-use{font-size:11px;color:var(--text-muted);border-top:.5px solid var(--border);padding-top:8px;margin-top:4px}
+.card-use span{color:var(--text-accent)}
+svg.preview{width:100%;max-height:140px}
+</style>
+
+<div class="gallery">
+<div class="seg" id="seg"></div>
+<div class="grid" id="grid"></div>
+</div>
+
+<script>
+const cats=['全部','反事实解释','因果推断'];
+let cur='全部';
+
+const cards=[
+  {
+    cat:'反事实解释',
+    name:'CF对比表（Counterfactual Table）',
+    desc:'最基础的反事实展示形式。原始患者一行，多个CF方案各一行，改变的格子用颜色标注，模型预测概率列在末尾。直观清晰，一眼看出"改了哪些变量、改了多少、风险降了多少"。',
+    use:'适合：DiCE输出的直接展示；单患者或多患者案例分析',
+    preview:`<svg viewBox="0 0 260 130" class="preview">
+      <rect x="0" y="0" width="260" height="130" fill="none"/>
+      <rect x="4" y="4" width="252" height="20" rx="3" fill="#E6F1FB" stroke="#B5D4F4" stroke-width=".5"/>
+      <text x="8" y="17" font-size="7" fill="#0C447C" font-weight="500">变量</text>
+      <text x="68" y="17" font-size="7" fill="#0C447C">手术时长</text>
+      <text x="120" y="17" font-size="7" fill="#0C447C">负压引流</text>
+      <text x="172" y="17" font-size="7" fill="#0C447C">钛网</text>
+      <text x="218" y="17" font-size="7" fill="#0C447C" font-weight="500">风险</text>
+      <rect x="4" y="26" width="252" height="18" rx="0" fill="#F1EFE8"/>
+      <text x="8" y="37" font-size="7" fill="#444441">原始患者</text>
+      <text x="80" y="37" font-size="7" fill="#444441">5.0h</text>
+      <text x="128" y="37" font-size="7" fill="#444441">否</text>
+      <text x="180" y="37" font-size="7" fill="#444441">否</text>
+      <text x="218" y="37" font-size="7" fill="#A32D2D" font-weight="500">78%↑</text>
+      <rect x="4" y="46" width="252" height="18" rx="0" fill="white"/>
+      <text x="8" y="57" font-size="7" fill="#444441">方案 CF1</text>
+      <rect x="100" y="48" width="30" height="13" rx="2" fill="#EAF3DE"/>
+      <text x="105" y="57" font-size="7" fill="#27500A" font-weight="500">是</text>
+      <text x="80" y="57" font-size="7" fill="#888780">5.0h</text>
+      <text x="180" y="57" font-size="7" fill="#888780">否</text>
+      <text x="218" y="57" font-size="7" fill="#3B6D11" font-weight="500">43%↓</text>
+      <rect x="4" y="66" width="252" height="18" rx="0" fill="#F1EFE8"/>
+      <text x="8" y="77" font-size="7" fill="#444441">方案 CF2</text>
+      <rect x="62" y="68" width="34" height="13" rx="2" fill="#EAF3DE"/>
+      <text x="67" y="77" font-size="7" fill="#27500A" font-weight="500">3.5h</text>
+      <rect x="160" y="68" width="24" height="13" rx="2" fill="#EAF3DE"/>
+      <text x="165" y="77" font-size="7" fill="#27500A" font-weight="500">是</text>
+      <text x="128" y="77" font-size="7" fill="#888780">否</text>
+      <text x="218" y="77" font-size="7" fill="#3B6D11" font-weight="500">38%↓</text>
+      <rect x="4" y="86" width="252" height="18" rx="0" fill="white"/>
+      <text x="8" y="97" font-size="7" fill="#444441">方案 CF3</text>
+      <rect x="62" y="88" width="34" height="13" rx="2" fill="#EAF3DE"/>
+      <text x="67" y="97" font-size="7" fill="#27500A" font-weight="500">3.0h</text>
+      <rect x="100" y="88" width="30" height="13" rx="2" fill="#EAF3DE"/>
+      <text x="105" y="97" font-size="7" fill="#27500A" font-weight="500">是</text>
+      <text x="180" y="97" font-size="7" fill="#888780">否</text>
+      <text x="218" y="97" font-size="7" fill="#3B6D11" font-weight="500">35%↓</text>
+      <text x="8" y="120" font-size="6.5" fill="#888780">绿色高亮=与原始患者不同的变量值</text>
+    </svg>`
+  },
+  {
+    cat:'反事实解释',
+    name:'雷达图（Radar / Spider Plot）',
+    desc:'如本文Fig 5d。每个轴代表一个变量，实线=原始患者，虚线=CF方案。多边形的形状差异直观呈现"改了哪些变量的量级"，视觉冲击力强，适合少数几个CF方案的对比。',
+    use:'适合：展示2-3个CF方案与原始患者的整体变量轮廓对比',
+    preview:`<svg viewBox="0 0 260 140" class="preview">
+      <defs><marker id="a2" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="5" markerHeight="5" orient="auto"><path d="M2 1L8 5L2 9" fill="none" stroke="#185FA5" stroke-width="1.5"/></marker></defs>
+      <g transform="translate(130,72)">
+        <polygon points="0,-55 52,-17 32,45 -32,45 -52,-17" fill="none" stroke="#D3D1C7" stroke-width=".5"/>
+        <polygon points="0,-30 28,-9 17,24 -17,24 -28,-9" fill="none" stroke="#D3D1C7" stroke-width=".5" stroke-dasharray="2 2"/>
+        <line x1="0" y1="-55" x2="0" y2="0" stroke="#D3D1C7" stroke-width=".5"/>
+        <line x1="52" y1="-17" x2="0" y2="0" stroke="#D3D1C7" stroke-width=".5"/>
+        <line x1="32" y1="45" x2="0" y2="0" stroke="#D3D1C7" stroke-width=".5"/>
+        <line x1="-32" y1="45" x2="0" y2="0" stroke="#D3D1C7" stroke-width=".5"/>
+        <line x1="-52" y1="-17" x2="0" y2="0" stroke="#D3D1C7" stroke-width=".5"/>
+        <polygon points="0,-50 46,-15 28,40 -15,32 -46,-14" fill="rgba(227,73,72,.12)" stroke="#E24B4A" stroke-width="1.5"/>
+        <polygon points="0,-28 20,-8 8,18 -24,18 -30,-10" fill="rgba(27,175,122,.15)" stroke="#1D9E75" stroke-width="1.5" stroke-dasharray="4 2"/>
+        <text x="0" y="-60" font-size="7" fill="#444441" text-anchor="middle">手术时长</text>
+        <text x="58" y="-14" font-size="7" fill="#444441">缺损面积</text>
+        <text x="36" y="54" font-size="7" fill="#444441">GCS</text>
+        <text x="-60" y="54" font-size="7" fill="#444441">负压引流</text>
+        <text x="-70" y="-14" font-size="7" fill="#444441">DC-CP间隔</text>
+      </g>
+      <rect x="150" y="6" width="8" height="5" fill="none" stroke="#E24B4A" stroke-width="1.5"/>
+      <text x="162" y="12" font-size="6.5" fill="#888780">原始患者（高危78%）</text>
+      <line x1="150" y1="18" x2="158" y2="18" stroke="#1D9E75" stroke-width="1.5" stroke-dasharray="3 1.5"/>
+      <text x="162" y="21" font-size="6.5" fill="#888780">CF方案（低危38%）</text>
+    </svg>`
+  },
+  {
+    cat:'反事实解释',
+    name:'平行坐标图（Parallel Coordinates）',
+    desc:'每条竖轴代表一个变量，每条线代表一个患者或CF方案。原始高危患者用红线，低危CF方案用绿线，线的交叉和走向清晰展示"从高风险到低风险，变量轨迹如何变化"。适合多患者多方案的大规模展示。',
+    use:'适合：批量CF方案的整体模式分析；多患者比较',
+    preview:`<svg viewBox="0 0 260 130" class="preview">
+      <line x1="30" y1="15" x2="30" y2="115" stroke="#D3D1C7" stroke-width=".5"/>
+      <line x1="80" y1="15" x2="80" y2="115" stroke="#D3D1C7" stroke-width=".5"/>
+      <line x1="130" y1="15" x2="130" y2="115" stroke="#D3D1C7" stroke-width=".5"/>
+      <line x1="180" y1="15" x2="180" y2="115" stroke="#D3D1C7" stroke-width=".5"/>
+      <line x1="230" y1="15" x2="230" y2="115" stroke="#D3D1C7" stroke-width=".5"/>
+      <text x="30" y="10" font-size="6.5" fill="#888780" text-anchor="middle">时长</text>
+      <text x="80" y="10" font-size="6.5" fill="#888780" text-anchor="middle">缺损</text>
+      <text x="130" y="10" font-size="6.5" fill="#888780" text-anchor="middle">GCS</text>
+      <text x="180" y="10" font-size="6.5" fill="#888780" text-anchor="middle">引流</text>
+      <text x="230" y="10" font-size="6.5" fill="#888780" text-anchor="middle">风险</text>
+      <polyline points="30,30 80,40 130,80 180,90 230,25" fill="none" stroke="#E24B4A" stroke-width="1.2" opacity=".8"/>
+      <polyline points="30,45 80,50 130,70 180,85 230,35" fill="none" stroke="#E24B4A" stroke-width="1.2" opacity=".6"/>
+      <polyline points="30,60 80,35 130,55 180,88 230,40" fill="none" stroke="#E24B4A" stroke-width="1.2" opacity=".5"/>
+      <polyline points="30,65 80,55 130,40 180,20 230,90" fill="none" stroke="#1D9E75" stroke-width="1.5" opacity=".9"/>
+      <polyline points="30,55 80,60 130,35 180,22 230,95" fill="none" stroke="#1D9E75" stroke-width="1.5" opacity=".7"/>
+      <polyline points="30,70 80,45 130,45 180,18 230,100" fill="none" stroke="#1D9E75" stroke-width="1.2" opacity=".6"/>
+      <text x="235" y="28" font-size="6" fill="#A32D2D">高危</text>
+      <text x="235" y="98" font-size="6" fill="#3B6D11">低危</text>
+    </svg>`
+  },
+  {
+    cat:'反事实解释',
+    name:'CF特征改动量条形图（Feature Change Bar）',
+    desc:'针对单个CF方案，每个变量画一根水平条，条的长度代表改动幅度，方向代表增/减，颜色区分改变的变量（有颜色）和未改变的（灰色）。是"改了多少"的最直观量化呈现。',
+    use:'适合：深入解读某一个具体CF方案；强调改动幅度',
+    preview:`<svg viewBox="0 0 260 130" class="preview">
+      <line x1="110" y1="10" x2="110" y2="120" stroke="#D3D1C7" stroke-width=".8"/>
+      <text x="108" y="8" font-size="6" fill="#888780" text-anchor="middle">0（不变）</text>
+      <text x="40" y="28" font-size="7" fill="#444441" text-anchor="end">手术时长</text>
+      <rect x="75" y="20" width="35" height="12" rx="2" fill="#FAECE7" stroke="#F0997B" stroke-width=".5"/>
+      <text x="73" y="29" font-size="7" fill="#993C1D" text-anchor="end">−1.5h</text>
+      <text x="40" y="48" font-size="7" fill="#444441" text-anchor="end">负压引流</text>
+      <rect x="110" y="40" width="28" height="12" rx="2" fill="#EAF3DE" stroke="#97C459" stroke-width=".5"/>
+      <text x="142" y="49" font-size="7" fill="#3B6D11">+1（启用）</text>
+      <text x="40" y="68" font-size="7" fill="#888780" text-anchor="end">颅骨缺损</text>
+      <rect x="108" y="60" width="4" height="12" rx="1" fill="#D3D1C7"/>
+      <text x="116" y="69" font-size="7" fill="#B4B2A9">不变</text>
+      <text x="40" y="88" font-size="7" fill="#888780" text-anchor="end">GCS</text>
+      <rect x="108" y="80" width="4" height="12" rx="1" fill="#D3D1C7"/>
+      <text x="116" y="89" font-size="7" fill="#B4B2A9">不变</text>
+      <text x="40" y="108" font-size="7" fill="#444441" text-anchor="end">钛网</text>
+      <rect x="110" y="100" width="22" height="12" rx="2" fill="#EAF3DE" stroke="#97C459" stroke-width=".5"/>
+      <text x="136" y="109" font-size="7" fill="#3B6D11">+1（启用）</text>
+      <text x="20" y="120" font-size="6" fill="#888780">← 减少</text>
+      <text x="170" y="120" font-size="6" fill="#888780">增加 →</text>
+    </svg>`
+  },
+  {
+    cat:'反事实解释',
+    name:'CF覆盖率热图（Feasibility Heatmap）',
+    desc:'行=多个患者，列=多个CF方案，颜色=该方案对该患者是否可行（能翻转预测）。用于批量分析"某类CF策略对哪类患者最有效"，发现干预方案的适用人群规律。',
+    use:'适合：大样本分析CF方案适用性；识别干预策略的目标人群',
+    preview:`<svg viewBox="0 0 260 130" class="preview">
+      <text x="55" y="10" font-size="7" fill="#888780" text-anchor="middle">仅用引流</text>
+      <text x="105" y="10" font-size="7" fill="#888780" text-anchor="middle">仅用钛网</text>
+      <text x="155" y="10" font-size="7" fill="#888780" text-anchor="middle">引流+钛网</text>
+      <text x="210" y="10" font-size="7" fill="#888780" text-anchor="middle">缩短手术+引流</text>
+      ${[0,1,2,3,4,5,6,7].map((i)=>`
+        <text x="28" y="${22+i*14}" font-size="6.5" fill="#888780" text-anchor="end">患者${i+1}</text>
+        <rect x="32" y="${13+i*14}" width="46" height="12" rx="2" fill="${['#EAF3DE','#EAF3DE','#FAECE7','#EAF3DE','#EAF3DE','#FAECE7','#EAF3DE','#EAF3DE'][i]}"/>
+        <rect x="82" y="${13+i*14}" width="46" height="12" rx="2" fill="${['#FAECE7','#EAF3DE','#EAF3DE','#FAECE7','#EAF3DE','#EAF3DE','#FAECE7','#EAF3DE'][i]}"/>
+        <rect x="132" y="${13+i*14}" width="46" height="12" rx="2" fill="${['#EAF3DE','#EAF3DE','#EAF3DE','#EAF3DE','#FAECE7','#EAF3DE','#EAF3DE','#EAF3DE'][i]}"/>
+        <rect x="182" y="${13+i*14}" width="52" height="12" rx="2" fill="${['#EAF3DE','#EAF3DE','#EAF3DE','#EAF3DE','#EAF3DE','#EAF3DE','#FAECE7','#EAF3DE'][i]}"/>
+      `).join('')}
+      <rect x="32" y="118" width="10" height="8" rx="1" fill="#EAF3DE"/>
+      <text x="46" y="125" font-size="6" fill="#888780">可翻转</text>
+      <rect x="80" y="118" width="10" height="8" rx="1" fill="#FAECE7"/>
+      <text x="94" y="125" font-size="6" fill="#888780">不可翻转</text>
+    </svg>`
+  },
+  {
+    cat:'反事实解释',
+    name:'最小改动路径图（Wachter-style CF Path）',
+    desc:'在特征空间中，从原始样本点出发，画出到达"决策边界另一侧"最近点的路径。展示CF的"最近距离"直觉，常用于说明CF的稀疏性（只改最少变量）。',
+    use:'适合：方法论图示；展示CF搜索原理；论文方法部分',
+    preview:`<svg viewBox="0 0 260 130" class="preview">
+      <rect x="10" y="10" width="240" height="110" rx="4" fill="none" stroke="#D3D1C7" stroke-width=".5"/>
+      <path d="M10,75 Q130,30 250,75" fill="rgba(37,118,213,.08)" stroke="#185FA5" stroke-width="1" stroke-dasharray="4 3"/>
+      <text x="130" y="25" font-size="6.5" fill="#185FA5" text-anchor="middle">决策边界</text>
+      <text x="60" y="100" font-size="8" fill="#A32D2D">高风险区域</text>
+      <text x="160" y="55" font-size="8" fill="#3B6D11">低风险区域</text>
+      <circle cx="80" cy="95" r="6" fill="#E24B4A" stroke="white" stroke-width="1.5"/>
+      <text x="80" y="108" font-size="6" fill="#A32D2D" text-anchor="middle">原始患者</text>
+      <circle cx="155" cy="62" r="6" fill="#1D9E75" stroke="white" stroke-width="1.5"/>
+      <text x="155" y="52" font-size="6" fill="#3B6D11" text-anchor="middle">CF（最近点）</text>
+      <line x1="86" y1="89" x2="149" y2="68" stroke="#888780" stroke-width="1" stroke-dasharray="3 2" marker-end="url(#a2)"/>
+      <text x="118" y="75" font-size="6" fill="#5F5E5A" text-anchor="middle">最小距离</text>
+    </svg>`
+  },
+  {
+    cat:'因果推断',
+    name:'ATE误差棒图（ATE Bar with CI）',
+    desc:'如本文Fig 5e。每个干预措施一根柱子，高度=ATE值，误差棒=95%置信区间。参考线在0处。这是因果推断最核心的结果图，直接展示"干预措施本身降低了多少并发症概率"及其统计显著性。',
+    use:'适合：DML/IPW/PSM等估计ATE后的结果展示；多干预措施比较',
+    preview:`<svg viewBox="0 0 260 130" class="preview">
+      <line x1="40" y1="110" x2="240" y2="110" stroke="#D3D1C7" stroke-width=".5"/>
+      <line x1="40" y1="60" x2="240" y2="60" stroke="#D3D1C7" stroke-width=".5" stroke-dasharray="3 2"/>
+      <text x="36" y="63" font-size="6.5" fill="#888780" text-anchor="end">0</text>
+      <line x1="40" y1="10" x2="40" y2="115" stroke="#D3D1C7" stroke-width=".5"/>
+      <text x="36" y="13" font-size="6" fill="#888780" text-anchor="end">−0.3</text>
+      <text x="36" y="113" font-size="6" fill="#888780" text-anchor="end">+0.1</text>
+      <rect x="70" y="72" width="40" height="38" rx="3" fill="#B5D4F4" stroke="#185FA5" stroke-width=".8"/>
+      <line x1="90" y1="52" x2="90" y2="88" stroke="#185FA5" stroke-width="1.2"/>
+      <line x1="80" y1="52" x2="100" y2="52" stroke="#185FA5" stroke-width="1"/>
+      <line x1="80" y1="88" x2="100" y2="88" stroke="#185FA5" stroke-width="1"/>
+      <text x="90" y="122" font-size="6.5" fill="#444441" text-anchor="middle">负压引流</text>
+      <text x="90" y="68" font-size="7" fill="#0C447C" text-anchor="middle" font-weight="500">−0.241</text>
+      <rect x="150" y="78" width="40" height="32" rx="3" fill="#9FE1CB" stroke="#0F6E56" stroke-width=".8"/>
+      <line x1="170" y1="57" x2="170" y2="92" stroke="#0F6E56" stroke-width="1.2"/>
+      <line x1="160" y1="57" x2="180" y2="57" stroke="#0F6E56" stroke-width="1"/>
+      <line x1="160" y1="92" x2="180" y2="92" stroke="#0F6E56" stroke-width="1"/>
+      <text x="170" y="122" font-size="6.5" fill="#444441" text-anchor="middle">钛网植入</text>
+      <text x="170" y="74" font-size="7" fill="#085041" text-anchor="middle" font-weight="500">−0.191</text>
+      <text x="150" y="58" font-size="6" fill="#5F5E5A">95% CI</text>
+    </svg>`
+  },
+  {
+    cat:'因果推断',
+    name:'CATE分布直方图（CATE Histogram）',
+    desc:'展示所有患者个体因果效应（CATE）的分布。如果CATE分布集中在负值区，说明大多数患者获益；如果分布跨越0，说明存在异质性——有人获益有人无效甚至有害。是T-learner输出的基础可视化。',
+    use:'适合：T-learner/Causal Forest输出的第一步可视化；异质性探索',
+    preview:`<svg viewBox="0 0 260 130" class="preview">
+      <line x1="30" y1="110" x2="240" y2="110" stroke="#D3D1C7" stroke-width=".5"/>
+      <line x1="130" y1="10" x2="130" y2="115" stroke="#E24B4A" stroke-width=".8" stroke-dasharray="3 2"/>
+      <text x="130" y="8" font-size="6" fill="#A32D2D" text-anchor="middle">ATE=−0.191</text>
+      ${[[35,30],[50,55],[65,90],[80,108],[95,95],[110,72],[125,45],[140,28],[155,18],[170,10],[185,6]].map(([x,h])=>
+        `<rect x="${x}" y="${110-h}" width="14" height="${h}" rx="1" fill="${x<130?'#B5D4F4':'#F5C4B3'}" stroke="${x<130?'#378ADD':'#F0997B'}" stroke-width=".3"/>`
+      ).join('')}
+      <text x="80" y="122" font-size="6.5" fill="#185FA5" text-anchor="middle">获益（CATE＜0）</text>
+      <text x="175" y="122" font-size="6.5" fill="#993C1D" text-anchor="middle">无效/有害</text>
+      <line x1="240" y1="110" x2="240" y2="10" stroke="#D3D1C7" stroke-width=".3"/>
+      <text x="30" y="122" font-size="6" fill="#888780">−0.5</text>
+      <text x="220" y="122" font-size="6" fill="#888780">+0.1</text>
+    </svg>`
+  },
+  {
+    cat:'因果推断',
+    name:'CATE小提琴图（CATE Violin by Subgroup）',
+    desc:'如本文Fig 5f。按亚组（年龄×性别）展示CATE分布的小提琴图，形状宽处=该CATE值的患者多，参考线在0处。一图同时呈现"群体效应异质性"和"分布形状"，是亚组分析的高级可视化。',
+    use:'适合：DML/T-learner的亚组异质性分析；个体化医疗证据',
+    preview:`<svg viewBox="0 0 260 130" class="preview">
+      <line x1="30" y1="10" x2="30" y2="115" stroke="#D3D1C7" stroke-width=".5"/>
+      <line x1="30" y1="62" x2="240" y2="62" stroke="#E24B4A" stroke-width=".6" stroke-dasharray="2 2"/>
+      <text x="26" y="65" font-size="6" fill="#A32D2D" text-anchor="end">0</text>
+      ${[
+        {x:60,pts:'60,110 52,85 50,68 55,50 60,38 65,50 70,68 68,85 60,110',col:'#B5D4F4',sc:'#185FA5',label:'＜40岁男'},
+        {x:110,pts:'110,108 102,80 100,62 105,44 110,32 115,44 120,62 118,80 110,108',col:'#9FE1CB',sc:'#0F6E56',label:'＜40岁女'},
+        {x:160,pts:'160,106 152,82 150,65 155,48 160,36 165,48 170,65 168,82 160,106',col:'#B5D4F4',sc:'#185FA5',label:'≥40岁男'},
+        {x:210,pts:'210,112 202,88 200,70 205,52 210,40 215,52 220,70 218,88 210,112',col:'#9FE1CB',sc:'#0F6E56',label:'≥40岁女'},
+      ].map(v=>`
+        <polygon points="${v.pts}" fill="${v.col}" stroke="${v.sc}" stroke-width=".8" opacity=".85"/>
+        <line x1="${v.x-10}" y1="${v.x===160?57:v.x===210?65:v.x===60?70:55}" x2="${v.x+10}" y2="${v.x===160?57:v.x===210?65:v.x===60?70:55}" stroke="${v.sc}" stroke-width="2"/>
+        <text x="${v.x}" y="122" font-size="6" fill="#888780" text-anchor="middle">${v.label}</text>
+      `).join('')}
+      <text x="240" y="14" font-size="6" fill="#A32D2D" text-anchor="end">有害↑</text>
+      <text x="240" y="110" font-size="6" fill="#3B6D11" text-anchor="end">获益↓</text>
+    </svg>`
+  },
+  {
+    cat:'因果推断',
+    name:'CATE热图（CATE Heatmap by Feature Bins）',
+    desc:'将患者按两个特征分箱（如年龄×GCS），格子颜色表示该格子内患者的平均CATE。一眼看出哪类患者获益最大（深绿）、哪类无效（白色）、哪类可能有害（浅红）。是识别精准干预目标人群的利器。',
+    use:'适合：CATE异质性的二维可视化；精准医疗的患者分层',
+    preview:`<svg viewBox="0 0 260 130" class="preview">
+      <text x="140" y="8" font-size="7" fill="#888780" text-anchor="middle">GCS 评分</text>
+      <text x="14" y="70" font-size="7" fill="#888780" transform="rotate(-90,14,70)" text-anchor="middle">年龄</text>
+      ${['3-5','6-8','9-11','12-15'].map((gcs,j)=>
+        `<text x="${62+j*42}" y="18" font-size="6.5" fill="#888780" text-anchor="middle">${gcs}</text>`
+      ).join('')}
+      ${['＜40','40-60','＞60'].map((age,i)=>`
+        <text x="36" y="${38+i*28}" font-size="6.5" fill="#888780" text-anchor="end">${age}</text>
+        ${[0,1,2,3].map(j=>{
+          const v=[
+            [-.05,-.15,-.28,-.35],
+            [-.02,-.12,-.22,-.31],
+            [.01,-.05,-.14,-.20]
+          ][i][j];
+          const g=v<0?Math.round(Math.abs(v)*400):0;
+          const r=v>0?Math.round(v*600):0;
+          const fill=v<0?`rgb(${220-g},${230},${220-g/2})`:`rgb(${240},${220-r},${220-r})`;
+          return `<rect x="${42+j*42}" y="${26+i*28}" width="38" height="24" rx="2" fill="${fill}"/>
+            <text x="${61+j*42}" y="${41+i*28}" font-size="6.5" fill="${Math.abs(v)>.1?'#27500A':'#444441'}" text-anchor="middle">${v.toFixed(2)}</text>`
+        }).join('')}
+      `).join('')}
+      <text x="50" y="120" font-size="6" fill="#3B6D11">■ 深绿=获益大</text>
+      <text x="140" y="120" font-size="6" fill="#A32D2D">■ 红=可能有害</text>
+    </svg>`
+  },
+  {
+    cat:'因果推断',
+    name:'TOC曲线（Targeting Operator Characteristic）',
+    desc:'将患者按CATE从高到低排序，计算"如果只干预前k%获益最大的患者，平均获益是多少"，形成曲线。曲线越陡越高说明CATE预测能力越强、精准干预越有效。是CATE质量评估的专用曲线，类比ROC曲线的地位。',
+    use:'适合：评估CATE估计质量；精准干预的效益分析；对比不同CATE模型',
+    preview:`<svg viewBox="0 0 260 130" class="preview">
+      <line x1="30" y1="10" x2="30" y2="110" stroke="#D3D1C7" stroke-width=".5"/>
+      <line x1="30" y1="110" x2="240" y2="110" stroke="#D3D1C7" stroke-width=".5"/>
+      <line x1="30" y1="110" x2="240" y2="60" stroke="#D3D1C7" stroke-width=".8" stroke-dasharray="4 3"/>
+      <text x="200" y="57" font-size="6.5" fill="#888780">ATE基准</text>
+      <path d="M30,110 Q50,40 90,35 Q140,30 240,60" fill="none" stroke="#185FA5" stroke-width="1.8"/>
+      <text x="75" y="28" font-size="6.5" fill="#185FA5">TOC曲线（Causal Forest）</text>
+      <path d="M30,110 Q70,65 120,55 Q180,48 240,60" fill="none" stroke="#1D9E75" stroke-width="1.5" stroke-dasharray="5 2"/>
+      <text x="140" y="44" font-size="6.5" fill="#1D9E75">TOC曲线（T-learner）</text>
+      <text x="30" y="120" font-size="6" fill="#888780">0%</text>
+      <text x="130" y="120" font-size="6" fill="#888780" text-anchor="middle">干预比例</text>
+      <text x="235" y="120" font-size="6" fill="#888780">100%</text>
+      <text x="26" y="13" font-size="6" fill="#888780" text-anchor="end">效益</text>
+    </svg>`
+  },
+  {
+    cat:'因果推断',
+    name:'因果效应森林图（ATE Forest Plot）',
+    desc:'经典临床统计图形的因果升级版。每行是一个亚组或干预，点=ATE估计值，横线=95%置信区间，垂直参考线在0处。多行森林图可同时展示多个干预或多个亚组的因果效应，与Meta分析的森林图形式完全一致，临床医生熟悉。',
+    use:'适合：多干预因果效应汇总；亚组因果效应对比；DML/IPW结果展示',
+    preview:`<svg viewBox="0 0 260 130" class="preview">
+      <line x1="130" y1="10" x2="130" y2="115" stroke="#E24B4A" stroke-width=".8" stroke-dasharray="3 2"/>
+      <text x="130" y="8" font-size="6" fill="#888780" text-anchor="middle">无效应</text>
+      <text x="36" y="22" font-size="7" fill="#444441">负压引流（全体）</text>
+      <line x1="88" y1="28" x2="115" y2="28" stroke="#185FA5" stroke-width="1"/>
+      <rect x="100" y="24" width="10" height="8" rx="1" fill="#185FA5"/>
+      <text x="86" y="31" font-size="6" fill="#888780" text-anchor="end">−0.35</text>
+      <text x="117" y="31" font-size="6" fill="#888780">−0.13</text>
+      <text x="36" y="44" font-size="7" fill="#444441">负压引流（＜40岁）</text>
+      <line x1="82" y1="50" x2="112" y2="50" stroke="#1D9E75" stroke-width="1"/>
+      <rect x="93" y="46" width="10" height="8" rx="1" fill="#1D9E75"/>
+      <text x="36" y="66" font-size="7" fill="#444441">负压引流（≥40岁男）</text>
+      <line x1="118" y1="72" x2="148" y2="72" stroke="#E24B4A" stroke-width="1"/>
+      <rect x="128" y="68" width="10" height="8" rx="1" fill="#E24B4A"/>
+      <text x="36" y="88" font-size="7" fill="#444441">钛网（全体）</text>
+      <line x1="90" y1="94" x2="120" y2="94" stroke="#185FA5" stroke-width="1"/>
+      <rect x="102" y="90" width="10" height="8" rx="1" fill="#185FA5"/>
+      <text x="36" y="110" font-size="7" fill="#444441">钛网（＜40岁）</text>
+      <line x1="85" y1="116" x2="115" y2="116" stroke="#1D9E75" stroke-width="1"/>
+      <rect x="96" y="112" width="10" height="8" rx="1" fill="#1D9E75"/>
+      <text x="50" y="125" font-size="6" fill="#A32D2D">← 有益</text>
+      <text x="170" y="125" font-size="6" fill="#888780">有害 →</text>
+    </svg>`
+  },
+  {
+    cat:'因果推断',
+    name:'倾向评分重叠图（PS Overlap / Covariate Balance）',
+    desc:'DML或IPW分析前的必备诊断图。展示处理组（用钛网）和对照组（不用钛网）的倾向评分分布，两组分布越重叠说明可比性越好。若分布几乎不重叠，因果推断基本失效。常与SMD图配合出现。',
+    use:'适合：DML/IPW/PSM分析的"数据可信度"前置诊断图',
+    preview:`<svg viewBox="0 0 260 130" class="preview">
+      <line x1="30" y1="110" x2="240" y2="110" stroke="#D3D1C7" stroke-width=".5"/>
+      <line x1="30" y1="10" x2="30" y2="115" stroke="#D3D1C7" stroke-width=".5"/>
+      ${[[35,8],[50,18],[65,35],[80,55],[95,72],[110,80],[125,68],[140,42],[155,20],[170,8],[185,3]].map(([x,h])=>
+        `<rect x="${x}" y="${110-h}" width="14" height="${h}" rx="1" fill="rgba(37,119,213,.35)" stroke="#185FA5" stroke-width=".3"/>`
+      ).join('')}
+      ${[[40,3],[55,7],[70,18],[85,38],[100,60],[115,75],[130,72],[145,55],[160,30],[175,12],[190,5]].map(([x,h])=>
+        `<rect x="${x}" y="${110-h}" width="14" height="${h}" rx="1" fill="rgba(27,175,122,.35)" stroke="#1D9E75" stroke-width=".3"/>`
+      ).join('')}
+      <rect x="38" y="15" width="8" height="6" rx="1" fill="rgba(37,119,213,.4)" stroke="#185FA5" stroke-width=".5"/>
+      <text x="50" y="21" font-size="6.5" fill="#888780">未用钛网组</text>
+      <rect x="100" y="15" width="8" height="6" rx="1" fill="rgba(27,175,122,.4)" stroke="#1D9E75" stroke-width=".5"/>
+      <text x="112" y="21" font-size="6.5" fill="#888780">用钛网组</text>
+      <text x="135" y="122" font-size="6" fill="#888780" text-anchor="middle">倾向评分 P(T=1|X)</text>
+      <text x="30" y="122" font-size="6" fill="#888780">0</text>
+      <text x="232" y="122" font-size="6" fill="#888780">1</text>
+    </svg>`
+  },
+  {
+    cat:'因果推断',
+    name:'协变量均衡图（Love Plot / SMD Plot）',
+    desc:'展示匹配/加权前后，各混杂变量在处理组和对照组之间的标准化均值差（SMD）。点在参考线（通常SMD < 0.1）之内说明该变量已平衡，不再是混杂来源。是PSM和IPW分析的标配诊断图。',
+    use:'适合：PSM/IPW后的混杂控制效果验证；DML前置诊断',
+    preview:`<svg viewBox="0 0 260 130" class="preview">
+      <line x1="130" y1="10" x2="130" y2="115" stroke="#E24B4A" stroke-width=".6" stroke-dasharray="2 2"/>
+      <line x1="150" y1="10" x2="150" y2="115" stroke="#D3D1C7" stroke-width=".5" stroke-dasharray="2 2"/>
+      <line x1="110" y1="10" x2="110" y2="115" stroke="#D3D1C7" stroke-width=".5" stroke-dasharray="2 2"/>
+      <text x="130" y="8" font-size="6" fill="#A32D2D" text-anchor="middle">SMD=0</text>
+      <text x="150" y="8" font-size="6" fill="#888780" text-anchor="middle">0.1</text>
+      <line x1="40" y1="110" x2="240" y2="110" stroke="#D3D1C7" stroke-width=".5"/>
+      ${[
+        {label:'手术时长',before:155,after:133},
+        {label:'GCS',before:165,after:127},
+        {label:'缺损面积',before:148,after:134},
+        {label:'术前感染',before:142,after:131},
+        {label:'VP分流',before:138,after:130},
+        {label:'DC-CP间隔',before:153,after:129},
+      ].map(({label,before,after},i)=>`
+        <text x="36" y="${24+i*16}" font-size="6.5" fill="#444441" text-anchor="end">${label}</text>
+        <circle cx="${before}" cy="${20+i*16}" r="3.5" fill="none" stroke="#E24B4A" stroke-width="1.2"/>
+        <circle cx="${after}" cy="${20+i*16}" r="3.5" fill="#185FA5" stroke="#185FA5" stroke-width=".5"/>
+      `).join('')}
+      <circle cx="60" cy="116" r="3" fill="none" stroke="#E24B4A" stroke-width="1.2"/>
+      <text x="68" y="119" font-size="6" fill="#888780">匹配前</text>
+      <circle cx="100" cy="116" r="3" fill="#185FA5"/>
+      <text x="108" y="119" font-size="6" fill="#888780">匹配后</text>
+    </svg>`
+  },
+];
+
+function renderSeg(){
+  document.getElementById('seg').innerHTML=cats.map(c=>
+    `<button class="seg-btn${cur===c?' on':''}" onclick="setcat('${c}')">${c}</button>`
+  ).join('');
+}
+
+function renderGrid(){
+  const items=cur==='全部'?cards:cards.filter(c=>c.cat===cur);
+  document.getElementById('grid').innerHTML=items.map(c=>`
+    <div class="card">
+      <div class="card-preview">${c.preview}</div>
+      <div class="card-body">
+        <span class="card-tag ${c.cat==='反事实解释'?'tag-cf':'tag-causal'}">${c.cat}</span>
+        <div class="card-name">${c.name}</div>
+        <div class="card-desc">${c.desc}</div>
+        <div class="card-use">推荐场景：<span>${c.use}</span></div>
+      </div>
+    </div>
+  `).join('');
+}
+
+function setcat(c){cur=c;renderSeg();renderGrid();}
+renderSeg();renderGrid();
+</script>

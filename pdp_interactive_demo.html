@@ -1,0 +1,183 @@
+<style>
+.pdp-wrap { padding: 1rem 0; }
+.tab-row { display: flex; gap: 8px; margin-bottom: 1.5rem; flex-wrap: wrap; }
+.tab-btn { padding: 6px 14px; font-size: 13px; border-radius: var(--radius); border: 0.5px solid var(--border-strong); background: transparent; color: var(--text-secondary); cursor: pointer; transition: all .15s; }
+.tab-btn.active { background: var(--bg-accent); color: var(--text-accent); border-color: var(--border-accent); font-weight: 500; }
+.panel { display: none; }
+.panel.active { display: block; }
+.insight-box { background: var(--surface-1); border-left: 3px solid var(--border-accent); border-radius: 0; padding: 10px 14px; font-size: 13px; color: var(--text-secondary); margin-top: 12px; line-height: 1.6; }
+.insight-box strong { color: var(--text-primary); font-weight: 500; }
+.chart-label { font-size: 12px; color: var(--text-muted); }
+</style>
+
+<div class="pdp-wrap">
+  <div class="tab-row">
+    <button class="tab-btn active" onclick="switchTab('surgery')">手术时长</button>
+    <button class="tab-btn" onclick="switchTab('interval')">DC-CP间隔</button>
+    <button class="tab-btn" onclick="switchTab('gcs')">GCS评分</button>
+    <button class="tab-btn" onclick="switchTab('vs_shap')">PDP vs SHAP对比</button>
+  </div>
+
+  <div id="panel-surgery" class="panel active">
+    <div style="position:relative;width:100%;height:260px;">
+      <canvas id="chart-surgery" role="img" aria-label="手术时长与并发症风险的偏依赖曲线，显示非线性关系">手术时长4小时后并发症风险显著上升。</canvas>
+    </div>
+    <div class="insight-box">
+      <strong>读图解读：</strong>手术时长在1–3小时区间风险平稳（约20%），超过4小时后急剧上升，6小时以上接近60%。这是非线性关系——如果只看相关系数，会漏掉这个"拐点"。PDP能直接呈现这个阈值效应，对外科医生制定手术策略很有价值。
+    </div>
+  </div>
+
+  <div id="panel-interval" class="panel">
+    <div style="position:relative;width:100%;height:260px;">
+      <canvas id="chart-interval" role="img" aria-label="DC至CP间隔月数与并发症风险的偏依赖曲线，U形关系">间隔过短或过长都会增加风险，6个月附近风险最低。</canvas>
+    </div>
+    <div class="insight-box">
+      <strong>读图解读：</strong>DC到CP间隔呈U形曲线——间隔&lt;3个月时风险最高（脑水肿尚未消退），6个月附近风险最低，超过12个月后风险缓慢回升（可能因神经功能退化）。这种U形关系传统logistic回归无法捕捉，PDP可以清晰展示出来。
+    </div>
+  </div>
+
+  <div id="panel-gcs" class="panel">
+    <div style="position:relative;width:100%;height:260px;">
+      <canvas id="chart-gcs" role="img" aria-label="GCS评分与并发症风险的偏依赖曲线，单调递减关系">GCS评分越高，并发症风险越低，呈单调递减关系。</canvas>
+    </div>
+    <div class="insight-box">
+      <strong>读图解读：</strong>GCS与风险呈单调递减——神经功能越好（GCS越高），术后并发症越少。曲线在GCS 8-10之间下降最陡，提示这是风险分层的关键区间。对于GCS≤8的患者，模型给出的风险提示需格外重视。
+    </div>
+  </div>
+
+  <div id="panel-vs_shap" class="panel">
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:16px;">
+      <div>
+        <p style="font-size:13px;font-weight:500;color:var(--text-primary);margin:0 0 8px;">SHAP — 单患者归因</p>
+        <div style="position:relative;width:100%;height:200px;">
+          <canvas id="chart-shap" role="img" aria-label="SHAP值条形图，展示各变量对单个患者预测的贡献">手术时长和GCS是该患者最主要的风险贡献变量。</canvas>
+        </div>
+        <p style="font-size:12px;color:var(--text-muted);margin:8px 0 0;text-align:center;">回答"为什么这个患者高风险"</p>
+      </div>
+      <div>
+        <p style="font-size:13px;font-weight:500;color:var(--text-primary);margin:0 0 8px;">PDP — 全局边际效应</p>
+        <div style="position:relative;width:100%;height:200px;">
+          <canvas id="chart-pdp-mini" role="img" aria-label="手术时长PDP迷你图">手术时长的全局边际效应曲线。</canvas>
+        </div>
+        <p style="font-size:12px;color:var(--text-muted);margin:8px 0 0;text-align:center;">回答"手术时长规律是什么"</p>
+      </div>
+    </div>
+    <div class="insight-box" style="margin-top:16px;">
+      <strong>核心差异：</strong>SHAP给出的是"这个患者，手术时长贡献了+0.18的风险"；PDP给出的是"在所有789名患者中，手术时长从1小时增到6小时，平均风险从20%涨到58%"。两者互补——SHAP用于个体解释，PDP用于发现群体规律和临床阈值。
+    </div>
+  </div>
+</div>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.js"></script>
+<script>
+const blue = '#2a78d6';
+const blueLight = 'rgba(42,120,214,0.10)';
+const amber = '#eda100';
+const amberLight = 'rgba(237,161,0,0.10)';
+const teal = '#1baf7a';
+const tealLight = 'rgba(27,175,122,0.10)';
+const muted = '#898781';
+
+const baseOpts = (xl, yl) => ({
+  responsive: true,
+  maintainAspectRatio: false,
+  plugins: {
+    legend: { display: false },
+    tooltip: {
+      callbacks: {
+        label: ctx => ` 并发症风险: ${ctx.parsed.y.toFixed(1)}%`
+      }
+    }
+  },
+  scales: {
+    x: {
+      title: { display: true, text: xl, color: muted, font: { size: 12 } },
+      grid: { color: 'rgba(140,138,130,0.15)' },
+      ticks: { color: muted, font: { size: 11 } }
+    },
+    y: {
+      title: { display: true, text: yl || '预测并发症概率 (%)', color: muted, font: { size: 12 } },
+      min: 0, max: 75,
+      grid: { color: 'rgba(140,138,130,0.15)' },
+      ticks: { color: muted, font: { size: 11 }, callback: v => v + '%' }
+    }
+  }
+});
+
+function makeArea(id, labels, data, color, fill, xl) {
+  new Chart(document.getElementById(id), {
+    type: 'line',
+    data: {
+      labels,
+      datasets: [{
+        data,
+        borderColor: color,
+        borderWidth: 2,
+        pointRadius: 3,
+        pointBackgroundColor: color,
+        fill: true,
+        backgroundColor: fill,
+        tension: 0.4
+      }]
+    },
+    options: baseOpts(xl)
+  });
+}
+
+makeArea(
+  'chart-surgery',
+  ['1h','2h','3h','4h','4.5h','5h','5.5h','6h','7h','8h'],
+  [19, 20, 22, 28, 36, 44, 51, 58, 63, 67],
+  blue, blueLight, '手术时长'
+);
+
+makeArea(
+  'chart-interval',
+  ['1mo','2mo','3mo','4mo','5mo','6mo','8mo','10mo','12mo','18mo','24mo'],
+  [52, 44, 36, 30, 26, 22, 23, 25, 28, 33, 38],
+  amber, amberLight, 'DC-CP 间隔（月）'
+);
+
+makeArea(
+  'chart-gcs',
+  ['3','4','5','6','7','8','9','10','11','12','13','14','15'],
+  [58, 54, 49, 43, 38, 34, 30, 26, 23, 21, 20, 19, 18],
+  teal, tealLight, 'GCS 评分'
+);
+
+new Chart(document.getElementById('chart-shap'), {
+  type: 'bar',
+  data: {
+    labels: ['手术时长','GCS','负压引流','术前积液','DC-CP间隔','钛网'],
+    datasets: [{
+      data: [0.21, 0.17, -0.14, 0.11, 0.09, -0.08],
+      backgroundColor: ctx => ctx.raw >= 0 ? 'rgba(227,73,72,0.75)' : 'rgba(27,175,122,0.75)',
+      borderRadius: 4
+    }]
+  },
+  options: {
+    indexAxis: 'y',
+    responsive: true,
+    maintainAspectRatio: false,
+    plugins: { legend: { display: false }, tooltip: { callbacks: { label: ctx => ` SHAP: ${ctx.parsed.x > 0 ? '+' : ''}${ctx.parsed.x.toFixed(2)}` } } },
+    scales: {
+      x: { title: { display: true, text: 'SHAP值（对单患者贡献）', color: muted, font: { size: 11 } }, grid: { color: 'rgba(140,138,130,0.15)' }, ticks: { color: muted, font: { size: 11 } } },
+      y: { ticks: { color: muted, font: { size: 11 } }, grid: { display: false } }
+    }
+  }
+});
+
+makeArea(
+  'chart-pdp-mini',
+  ['1h','2h','3h','4h','5h','6h','7h','8h'],
+  [19, 20, 22, 28, 44, 58, 63, 67],
+  blue, blueLight, '手术时长（全体患者均值）'
+);
+
+function switchTab(key) {
+  document.querySelectorAll('.panel').forEach(p => p.classList.remove('active'));
+  document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
+  document.getElementById('panel-' + key).classList.add('active');
+  event.target.classList.add('active');
+}
+</script>
