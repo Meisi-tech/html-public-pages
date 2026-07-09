@@ -1,0 +1,133 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Table 5 · 七模型性能对比</title>
+<link href="https://fonts.googleapis.com/css2?family=Noto+Serif+SC:wght@700;900&family=Noto+Sans+SC:wght@400;500;700&family=IBM+Plex+Mono:wght@500&display=swap" rel="stylesheet">
+<style>
+:root{--bg:#F5F6F3;--surface:#fff;--ink:#1B2733;--soft:#57626C;--line:#DCE1E0;--teal:#1F6F63;--clay:#AF4238;--amber:#C6872B;--navy:#22385C;}
+*{box-sizing:border-box;}
+body{margin:0;background:var(--bg);color:var(--ink);font-family:'Noto Sans SC',sans-serif;}
+header{padding:40px 6vw 18px;border-bottom:1px solid var(--line);}
+.eyebrow{font-family:'IBM Plex Mono',monospace;font-size:12px;color:var(--clay);letter-spacing:.14em;text-transform:uppercase;}
+h1{font-family:'Noto Serif SC',serif;font-weight:900;font-size:clamp(24px,3vw,36px);margin:8px 0;}
+header p{color:var(--soft);max-width:720px;line-height:1.7;font-size:14.5px;}
+.metricbar{display:flex;gap:8px;flex-wrap:wrap;margin:20px 6vw 0;}
+.metricbar button{padding:9px 16px;border-radius:999px;border:1px solid var(--line);background:#fff;font-size:13px;cursor:pointer;color:var(--soft);}
+.metricbar button.active{background:var(--navy);color:#fff;border-color:var(--navy);}
+.wrap{padding:26px 6vw 70px;display:grid;grid-template-columns:1.4fr 1fr;gap:28px;align-items:start;}
+@media (max-width:980px){.wrap{grid-template-columns:1fr;}}
+.card{background:var(--surface);border:1px solid var(--line);border-radius:16px;padding:22px 24px;}
+.legend{display:flex;gap:16px;font-size:12px;color:var(--soft);margin-bottom:14px;font-family:'IBM Plex Mono',monospace;}
+.legend span{display:inline-flex;align-items:center;gap:6px;}
+.dot{width:10px;height:10px;border-radius:3px;}
+.row{display:grid;grid-template-columns:150px 1fr 46px;align-items:center;gap:10px;padding:11px 0;border-bottom:1px solid var(--line);cursor:pointer;}
+.row:hover{background:#F7F8F5;}
+.row.best{background:#EAF1EE;}
+.row .name{font-weight:700;font-size:14px;}
+.row .name .tag{display:block;font-weight:400;font-size:11px;color:var(--amber);margin-top:2px;}
+.bars{position:relative;height:26px;}
+.bar-track{position:absolute;top:2px;height:9px;background:#EEF1EC;border-radius:5px;width:100%;}
+.bar-fill{position:absolute;top:2px;height:9px;border-radius:5px;}
+.bar-fill.train{background:#AEB9C4;top:2px;}
+.bar-fill.val{background:var(--navy);top:15px;}
+.bar-track2{position:absolute;top:15px;height:9px;background:#EEF1EC;border-radius:5px;width:100%;}
+.valtxt{text-align:right;font-family:'IBM Plex Mono',monospace;font-size:13px;color:var(--navy);font-weight:700;}
+.panel{position:sticky;top:20px;padding:24px 26px;}
+.panel h2{font-family:'Noto Serif SC',serif;font-size:21px;margin:6px 0 12px;}
+.k{font-family:'IBM Plex Mono',monospace;font-size:11px;color:var(--clay);text-transform:uppercase;letter-spacing:.08em;}
+.stat{display:flex;justify-content:space-between;padding:8px 0;border-bottom:1px dashed var(--line);font-size:14px;}
+.stat b{color:var(--navy);font-family:'IBM Plex Mono',monospace;}
+.box{background:#F0F2EE;border-left:3px solid var(--teal);border-radius:8px;padding:12px 15px;margin-top:14px;font-size:13.5px;line-height:1.7;}
+.box.warn{border-left-color:var(--clay);background:#FBF1EF;}
+.box .t{font-weight:700;color:var(--teal);margin-bottom:4px;}
+.box.warn .t{color:var(--clay);}
+</style>
+</head>
+<body>
+<header>
+  <div class="eyebrow">Table 5 · Model Performance Comparison</div>
+  <h1>七模型性能对比 —— 期末成绩单</h1>
+  <p>切换下方指标，比较LR/KNN/RF/DT/NN/XGB/LGB七个模型在训练集（浅灰）和验证集（深蓝）上的表现。点击任意模型查看详细解读，包括是否存在"过拟合"（训练集远高于验证集）。以下为<b>示意性模拟数据</b>。</p>
+</header>
+<div class="metricbar" id="metricbar"></div>
+<div class="wrap">
+  <div class="card">
+    <div class="legend">
+      <span><i class="dot" style="background:#AEB9C4"></i>训练集</span>
+      <span><i class="dot" style="background:#22385C"></i>验证集（选模型依据）</span>
+      <span><i class="dot" style="background:#C6872B"></i>★ 验证集表现最优</span>
+    </div>
+    <div id="rows"></div>
+  </div>
+  <div class="card panel" id="panel">
+    <div class="k">点击左侧任意模型</div>
+    <h2>选择一个模型</h2>
+    <div class="box"><div class="t">怎么看这张表</div>优先看验证集指标；如果训练集和验证集差距很大，说明模型可能"死记硬背"了训练数据（过拟合）。</div>
+  </div>
+</div>
+<script>
+const models = [
+ {id:'LR',name:'Logistic回归',tag:'最经典、可解释性最强',train:{auc:.78,sens:.70,spec:.73,ppv:.51,npv:.86,f1:.59},val:{auc:.77,sens:.71,spec:.74,ppv:.52,npv:.87,f1:.60}},
+ {id:'KNN',name:'K近邻',tag:'依赖相似病例投票',train:{auc:.81,sens:.66,spec:.72,ppv:.48,npv:.84,f1:.56},val:{auc:.69,sens:.65,spec:.70,ppv:.46,npv:.83,f1:.54}},
+ {id:'RF',name:'随机森林',tag:'多棵决策树投票',train:{auc:.93,sens:.80,spec:.85,ppv:.66,npv:.92,f1:.72},val:{auc:.76,sens:.69,spec:.78,ppv:.55,npv:.86,f1:.61}},
+ {id:'DT',name:'决策树',tag:'单棵树逐层分叉',train:{auc:.85,sens:.68,spec:.74,ppv:.50,npv:.85,f1:.58},val:{auc:.68,sens:.62,spec:.71,ppv:.45,npv:.81,f1:.52}},
+ {id:'NN',name:'神经网络',tag:'单隐层，模拟神经元连接',train:{auc:.88,sens:.75,spec:.79,ppv:.57,npv:.89,f1:.65},val:{auc:.74,sens:.68,spec:.75,ppv:.51,npv:.85,f1:.58}},
+ {id:'XGB',name:'XGBoost',tag:'梯度提升树，逐轮纠错',train:{auc:.95,sens:.83,spec:.87,ppv:.70,npv:.93,f1:.76},val:{auc:.80,sens:.74,spec:.79,ppv:.58,npv:.88,f1:.65}},
+ {id:'LGB',name:'LightGBM',tag:'轻量级梯度提升，速度更快',train:{auc:.94,sens:.81,spec:.86,ppv:.68,npv:.92,f1:.74},val:{auc:.79,sens:.73,spec:.78,ppv:.57,npv:.87,f1:.64}}
+];
+const metrics = [
+  {k:'auc',label:'AUC'},{k:'sens',label:'灵敏度'},{k:'spec',label:'特异度'},
+  {k:'ppv',label:'PPV'},{k:'npv',label:'NPV'},{k:'f1',label:'F1值'}
+];
+let curMetric = 'auc';
+document.getElementById('metricbar').innerHTML = metrics.map(m=>
+  `<button data-k="${m.k}" onclick="setMetric('${m.k}')">${m.label}</button>`
+).join('');
+function setMetric(k){
+  curMetric = k;
+  document.querySelectorAll('#metricbar button').forEach(b=>b.classList.toggle('active', b.dataset.k===k));
+  render();
+}
+function render(){
+  const bestVal = Math.max(...models.map(m=>m.val[curMetric]));
+  const sorted = [...models].sort((a,b)=>b.val[curMetric]-a.val[curMetric]);
+  document.getElementById('rows').innerHTML = sorted.map(m=>{
+    const isBest = m.val[curMetric]===bestVal;
+    const tW = (m.train[curMetric]*100).toFixed(0);
+    const vW = (m.val[curMetric]*100).toFixed(0);
+    return `<div class="row ${isBest?'best':''}" onclick='showDetail(${JSON.stringify(m.id)})'>
+      <div class="name">${m.name}${isBest?' ★':''}<span class="tag">${m.tag}</span></div>
+      <div class="bars">
+        <div class="bar-track"></div><div class="bar-fill train" style="width:${tW}%"></div>
+        <div class="bar-track2"></div><div class="bar-fill val" style="width:${vW}%"></div>
+      </div>
+      <div class="valtxt">${m.val[curMetric].toFixed(2)}</div>
+    </div>`;
+  }).join('');
+}
+function showDetail(id){
+  const m = models.find(x=>x.id===id);
+  const gap = m.train.auc - m.val.auc;
+  const overfitWarn = gap>0.12;
+  document.getElementById('panel').innerHTML = `
+    <div class="k">Model</div>
+    <h2>${m.name}（${m.tag}）</h2>
+    <div class="stat"><span>训练集 AUC</span><b>${m.train.auc.toFixed(2)}</b></div>
+    <div class="stat"><span>验证集 AUC</span><b>${m.val.auc.toFixed(2)}</b></div>
+    <div class="stat"><span>训练-验证差距</span><b style="color:${overfitWarn?'#AF4238':'#1F6F63'}">${gap.toFixed(2)}</b></div>
+    <div class="stat"><span>验证集灵敏度</span><b>${m.val.sens.toFixed(2)}</b></div>
+    <div class="stat"><span>验证集特异度</span><b>${m.val.spec.toFixed(2)}</b></div>
+    <div class="stat"><span>验证集F1</span><b>${m.val.f1.toFixed(2)}</b></div>
+    <div class="box ${overfitWarn?'warn':''}">
+      <div class="t">${overfitWarn?'⚠ 存在过拟合迹象':'✓ 表现较稳定'}</div>
+      ${overfitWarn
+        ? '训练集AUC明显高于验证集，说明模型在"练习题"上表现很好，但遇到"没做过的题"（验证集）时打了折扣，提示模型可能过于复杂、记住了训练数据的细节噪声，泛化能力打折扣。'
+        : '训练集和验证集AUC比较接近，说明模型学到的是真正的规律，而不是死记硬背训练数据，泛化能力较好。'}
+    </div>
+  `;
+}
+setMetric('auc');
+</script>
+</body>
+</html>

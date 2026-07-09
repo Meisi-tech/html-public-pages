@@ -1,0 +1,178 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Figure 1 · LASSO 变量筛选</title>
+<link href="https://fonts.googleapis.com/css2?family=Noto+Serif+SC:wght@700;900&family=Noto+Sans+SC:wght@400;500;700&family=IBM+Plex+Mono:wght@500&display=swap" rel="stylesheet">
+<style>
+:root{--bg:#F5F6F3;--surface:#fff;--ink:#1B2733;--soft:#57626C;--line:#DCE1E0;--teal:#1F6F63;--clay:#AF4238;--amber:#C6872B;--navy:#22385C;}
+*{box-sizing:border-box;}
+body{margin:0;background:var(--bg);color:var(--ink);font-family:'Noto Sans SC',sans-serif;}
+header{padding:40px 6vw 18px;border-bottom:1px solid var(--line);}
+.eyebrow{font-family:'IBM Plex Mono',monospace;font-size:12px;color:var(--clay);letter-spacing:.14em;text-transform:uppercase;}
+h1{font-family:'Noto Serif SC',serif;font-weight:900;font-size:clamp(24px,3vw,36px);margin:8px 0;}
+header p{color:var(--soft);max-width:700px;line-height:1.7;font-size:14.5px;}
+.wrap{padding:26px 6vw 70px;display:grid;grid-template-columns:1.4fr 1fr;gap:28px;}
+@media (max-width:960px){.wrap{grid-template-columns:1fr;}}
+.card{background:var(--surface);border:1px solid var(--line);border-radius:16px;padding:22px 24px;}
+.chart-title{font-weight:700;font-size:14px;color:var(--navy);margin-bottom:6px;}
+.chart-sub{font-size:12px;color:var(--soft);margin-bottom:10px;}
+svg{width:100%;height:auto;}
+.slider-wrap{margin:22px 0 4px;}
+input[type=range]{width:100%;accent-color:var(--clay);}
+.slider-label{display:flex;justify-content:space-between;font-family:'IBM Plex Mono',monospace;font-size:12px;color:var(--soft);margin-top:6px;}
+.presets{display:flex;gap:8px;margin-top:14px;}
+.presets button{flex:1;padding:9px;border-radius:9px;border:1px solid var(--line);background:#fff;font-size:12.5px;cursor:pointer;color:var(--ink);}
+.presets button:hover{border-color:var(--clay);color:var(--clay);}
+.panel{background:var(--surface);border:1px solid var(--line);border-radius:16px;padding:24px 26px;}
+.stat{display:flex;justify-content:space-between;padding:9px 0;border-bottom:1px dashed var(--line);font-size:14px;}
+.stat b{color:var(--navy);font-family:'IBM Plex Mono',monospace;}
+.varlist{margin-top:14px;display:flex;flex-wrap:wrap;gap:7px;}
+.chip{padding:6px 11px;border-radius:999px;font-size:12.5px;background:#EAF1EE;color:var(--teal);border:1px solid #cfe3da;}
+.chip.neg{background:#EDF3F8;color:var(--navy);border-color:#d3e0ec;}
+.chip.dead{background:#F2F2F0;color:#A2ACA6;text-decoration:line-through;border-color:#e5e5e2;}
+.box{background:#F0F2EE;border-left:3px solid var(--teal);border-radius:8px;padding:12px 15px;margin-top:16px;font-size:13.5px;line-height:1.7;}
+.box .t{font-weight:700;color:var(--teal);margin-bottom:4px;}
+</style>
+</head>
+<body>
+<header>
+  <div class="eyebrow">Figure 1 · LASSO Variable Selection</div>
+  <h1>LASSO 变量筛选 —— 拖动滑块，看35个变量的"海选"过程</h1>
+  <p>拖动下方滑块，模拟惩罚力度(λ)从小变大的过程。左图中每条曲线代表一个候选变量，曲线跌到0代表这个变量被淘汰；右图是交叉验证误差曲线，虚线标出最佳惩罚强度。以下为<b>示意性模拟数据</b>。</p>
+</header>
+<div class="wrap">
+  <div>
+    <div class="card">
+      <div class="chart-title">系数路径图</div>
+      <div class="chart-sub">每条线 = 一个变量的回归系数，随惩罚力度增大逐渐收缩到0</div>
+      <svg id="coefChart" viewBox="0 0 560 300"></svg>
+    </div>
+    <div class="card" style="margin-top:20px;">
+      <div class="chart-title">交叉验证误差曲线</div>
+      <div class="chart-sub">10折交叉验证的平均误差，U型曲线的最低点附近即为最佳惩罚强度</div>
+      <svg id="cvChart" viewBox="0 0 560 180"></svg>
+      <div class="slider-wrap">
+        <input type="range" id="slider" min="0" max="100" value="50">
+        <div class="slider-label"><span>λ 更小 → 变量更多</span><span id="lambdaVal">λ 位置：50</span><span>λ 更大 → 变量更少</span></div>
+      </div>
+      <div class="presets">
+        <button onclick="setSlider(10)">几乎全部保留</button>
+        <button onclick="setSlider(50)">λ.min（推荐）</button>
+        <button onclick="setSlider(62)">λ.1se（更简洁）</button>
+        <button onclick="setSlider(90)">过度惩罚</button>
+      </div>
+    </div>
+  </div>
+  <div class="panel">
+    <div class="chart-title">当前状态</div>
+    <div class="stat"><span>惩罚强度位置</span><b id="s1">50 / 100</b></div>
+    <div class="stat"><span>存活变量数</span><b id="s2">—</b></div>
+    <div class="stat"><span>交叉验证误差</span><b id="s3">—</b></div>
+    <div class="varlist" id="varlist"></div>
+    <div class="box" id="explainBox"><div class="t">解读</div>拖动滑块观察变量如何被逐一淘汰。</div>
+  </div>
+</div>
+<script>
+const vars = [
+ {name:'既往广谱抗生素使用天数', beta0:1.35, drop:0.62, dir:1},
+ {name:'机械通气', beta0:0.95, drop:0.55, dir:1},
+ {name:'既往ICU住院天数', beta0:0.88, drop:0.50, dir:1},
+ {name:'病情严重度评分', beta0:0.74, drop:0.47, dir:1},
+ {name:'免疫抑制状态', beta0:0.60, drop:0.40, dir:1},
+ {name:'年龄', beta0:0.55, drop:0.38, dir:1},
+ {name:'血清白蛋白水平', beta0:0.48, drop:0.34, dir:-1},
+ {name:'降钙素原', beta0:0.33, drop:0.24, dir:1},
+ {name:'白细胞计数', beta0:0.27, drop:0.20, dir:1},
+ {name:'留置导尿管', beta0:0.22, drop:0.16, dir:1},
+ {name:'血红蛋白水平', beta0:0.15, drop:0.11, dir:-1},
+ {name:'糖尿病', beta0:0.12, drop:0.09, dir:1},
+ {name:'性别(男)', beta0:0.05, drop:0.04, dir:1}
+];
+function coefAt(v,x){ // x in 0..1
+  const raw = v.beta0 * Math.max(0, 1 - x/v.drop);
+  return raw * v.dir;
+}
+const NS="http://www.w3.org/2000/svg";
+function el(tag,attrs){const e=document.createElementNS(NS,tag);for(const k in attrs)e.setAttribute(k,attrs[k]);return e;}
+
+// --- coefficient chart ---
+const coefSvg = document.getElementById('coefChart');
+const cW=560,cH=300,pad={l:40,r:14,t:14,b:30};
+const plotW=cW-pad.l-pad.r, plotH=cH-pad.t-pad.b;
+function xPix(x){return pad.l + x*plotW;}
+function yPix(y){ // y range -0.6 .. 1.4
+  const ymin=-0.6, ymax=1.45;
+  return pad.t + (ymax-y)/(ymax-ymin)*plotH;
+}
+// axes
+coefSvg.appendChild(el('line',{x1:pad.l,y1:yPix(0),x2:cW-pad.r,y2:yPix(0),stroke:'#DCE1E0',"stroke-width":1}));
+coefSvg.appendChild(el('line',{x1:pad.l,y1:pad.t,x2:pad.l,y2:cH-pad.b,stroke:'#DCE1E0',"stroke-width":1}));
+const colorPos='#1F6F63', colorNeg='#22385C';
+const paths = {};
+vars.forEach(v=>{
+  let d='';
+  for(let i=0;i<=60;i++){
+    const x=i/60;
+    const y=coefAt(v,x);
+    d += (i===0?'M':'L')+xPix(x).toFixed(1)+','+yPix(y).toFixed(1)+' ';
+  }
+  const p = el('path',{d:d,fill:'none',stroke:v.dir>0?colorPos:colorNeg,'stroke-width':1.6,opacity:0.55});
+  coefSvg.appendChild(p);
+  paths[v.name]=p;
+});
+const coefMarker = el('line',{x1:xPix(0.5),y1:pad.t,x2:xPix(0.5),y2:cH-pad.b,stroke:'#AF4238','stroke-width':1.6,'stroke-dasharray':'4,3'});
+coefSvg.appendChild(coefMarker);
+coefSvg.appendChild(el('text',{x:pad.l,y:cH-8,'font-size':10,fill:'#93A09A'})).textContent='λ 小（变量多）';
+const tEnd = el('text',{x:cW-pad.r,y:cH-8,'font-size':10,fill:'#93A09A','text-anchor':'end'}); tEnd.textContent='λ 大（变量少）'; coefSvg.appendChild(tEnd);
+
+// --- CV chart ---
+const cvSvg = document.getElementById('cvChart');
+const cvH=180, cvPad={l:40,r:14,t:14,b:28};
+const cvPlotW=cW-cvPad.l-cvPad.r, cvPlotH=cvH-cvPad.t-cvPad.b;
+function cvX(x){return cvPad.l+x*cvPlotW;}
+function cvErr(x){ return 0.70 + 1.1*Math.pow(x-0.52,2) + 0.02*Math.sin(x*30); }
+function cvY(e){ const emin=0.68, emax=1.05; return cvPad.t + (emax-e)/(emax-emin)*cvPlotH; }
+let cvD='';
+for(let i=0;i<=80;i++){ const x=i/80; cvD += (i===0?'M':'L')+cvX(x).toFixed(1)+','+cvY(cvErr(x)).toFixed(1)+' ';}
+cvSvg.appendChild(el('path',{d:cvD,fill:'none',stroke:'#22385C','stroke-width':2}));
+cvSvg.appendChild(el('line',{x1:cvX(0.5),y1:cvPad.t,x2:cvX(0.5),y2:cvH-cvPad.b,stroke:'#1F6F63','stroke-width':1.3,'stroke-dasharray':'3,3'}));
+cvSvg.appendChild(el('line',{x1:cvX(0.62),y1:cvPad.t,x2:cvX(0.62),y2:cvH-cvPad.b,stroke:'#C6872B','stroke-width':1.3,'stroke-dasharray':'3,3'}));
+const t1=el('text',{x:cvX(0.5),y:cvPad.t-2,'font-size':9,fill:'#1F6F63','text-anchor':'middle'});t1.textContent='λ.min';cvSvg.appendChild(t1);
+const t2=el('text',{x:cvX(0.62),y:cvPad.t-2,'font-size':9,fill:'#C6872B','text-anchor':'middle'});t2.textContent='λ.1se';cvSvg.appendChild(t2);
+const cvMarker = el('line',{x1:cvX(0.5),y1:cvPad.t,x2:cvX(0.5),y2:cvH-cvPad.b,stroke:'#AF4238','stroke-width':1.6,'stroke-dasharray':'4,3'});
+cvSvg.appendChild(cvMarker);
+
+const slider = document.getElementById('slider');
+function update(val){
+  const x = val/100;
+  coefMarker.setAttribute('x1',xPix(x)); coefMarker.setAttribute('x2',xPix(x));
+  cvMarker.setAttribute('x1',cvX(x)); cvMarker.setAttribute('x2',cvX(x));
+  document.getElementById('lambdaVal').textContent = 'λ 位置：'+val;
+  document.getElementById('s1').textContent = val+' / 100';
+  document.getElementById('s3').textContent = cvErr(x).toFixed(3)+' (二项偏差)';
+  let alive=0;
+  const chips=[];
+  vars.forEach(v=>{
+    const c = coefAt(v,x);
+    const isAlive = Math.abs(c) > 0.02;
+    if(isAlive) alive++;
+    chips.push({name:v.name, alive:isAlive, dir:v.dir});
+  });
+  document.getElementById('s2').textContent = alive + ' / '+vars.length;
+  document.getElementById('varlist').innerHTML = chips.map(c=>
+    `<span class="chip ${c.alive? (c.dir>0?'':'neg') : 'dead'}">${c.name}</span>`
+  ).join('');
+  let msg;
+  if(val<20) msg = '惩罚力度很小，几乎所有变量都被保留——模型复杂，可能包含很多冗余或弱相关变量，容易过拟合。';
+  else if(val<=55) msg = '这个区间接近 <b>λ.min</b>（交叉验证误差最低点），是模型预测能力最强、也是最常用的推荐取值。';
+  else if(val<=68) msg = '这个区间接近 <b>λ.1se</b>，误差比λ.min略高一点，但模型更简洁（变量更少），在"简单实用"和"预测精度"之间取得平衡，很多研究会优先选这个点。';
+  else msg = '惩罚力度过大，连一些真正有用的变量也被淘汰了，模型变得过于简单，交叉验证误差开始明显上升——这是"欠拟合"的表现。';
+  document.getElementById('explainBox').innerHTML = '<div class="t">解读</div>'+msg;
+}
+slider.addEventListener('input', e=>update(+e.target.value));
+function setSlider(v){slider.value=v; update(v);}
+update(50);
+</script>
+</body>
+</html>

@@ -1,0 +1,247 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Figure 6A–D · SHAP 可解释性分析</title>
+<link href="https://fonts.googleapis.com/css2?family=Noto+Serif+SC:wght@700;900&family=Noto+Sans+SC:wght@400;500;700&family=IBM+Plex+Mono:wght@500&display=swap" rel="stylesheet">
+<style>
+:root{--bg:#F5F6F3;--surface:#fff;--ink:#1B2733;--soft:#57626C;--line:#DCE1E0;--teal:#1F6F63;--clay:#AF4238;--amber:#C6872B;--navy:#22385C;}
+*{box-sizing:border-box;}
+body{margin:0;background:var(--bg);color:var(--ink);font-family:'Noto Sans SC',sans-serif;}
+header{padding:40px 6vw 18px;border-bottom:1px solid var(--line);}
+.eyebrow{font-family:'IBM Plex Mono',monospace;font-size:12px;color:var(--clay);letter-spacing:.14em;text-transform:uppercase;}
+h1{font-family:'Noto Serif SC',serif;font-weight:900;font-size:clamp(24px,3vw,36px);margin:8px 0;}
+header p{color:var(--soft);max-width:740px;line-height:1.7;font-size:14.5px;}
+.tabs{display:flex;gap:8px;margin:22px 6vw 0;flex-wrap:wrap;}
+.tab{padding:11px 18px;border-radius:12px 12px 0 0;border:1px solid var(--line);border-bottom:none;background:#EDEFEA;cursor:pointer;font-size:13.5px;color:var(--soft);}
+.tab.active{background:#fff;color:var(--navy);font-weight:700;}
+.tabpanel{background:#fff;border:1px solid var(--line);border-radius:0 16px 16px 16px;margin:0 6vw 70px;padding:28px 30px;min-height:480px;}
+.tabpanel > .inner{display:none;}
+.tabpanel > .inner.active{display:grid;grid-template-columns:1.3fr 1fr;gap:28px;align-items:start;}
+@media (max-width:980px){.tabpanel > .inner.active{grid-template-columns:1fr;}}
+svg{width:100%;height:auto;}
+.panel h3{font-family:'Noto Serif SC',serif;font-size:17px;margin:0 0 6px;color:var(--navy);}
+.panel .sub{font-size:12.5px;color:var(--soft);margin-bottom:14px;}
+.box{background:#F0F2EE;border-left:3px solid var(--teal);border-radius:8px;padding:12px 15px;margin-top:14px;font-size:13.5px;line-height:1.7;}
+.box .t{font-weight:700;color:var(--teal);margin-bottom:4px;}
+select{width:100%;padding:9px;border-radius:9px;border:1px solid var(--line);font-size:14px;margin-bottom:12px;}
+.chips{display:flex;gap:8px;margin-bottom:14px;flex-wrap:wrap;}
+.chip{padding:8px 14px;border-radius:999px;border:1px solid var(--line);font-size:13px;cursor:pointer;background:#fff;color:var(--soft);}
+.chip.active{background:var(--navy);color:#fff;border-color:var(--navy);}
+.legend-scale{display:flex;align-items:center;gap:8px;font-size:11.5px;color:var(--soft);margin-top:10px;font-family:'IBM Plex Mono',monospace;}
+.gradient-bar{width:140px;height:10px;border-radius:5px;background:linear-gradient(90deg,#3B6FA0,#D9564A);}
+.stat{display:flex;justify-content:space-between;padding:8px 0;border-bottom:1px dashed var(--line);font-size:13.5px;}
+.stat b{font-family:'IBM Plex Mono',monospace;}
+</style>
+</head>
+<body>
+<header>
+  <div class="eyebrow">Figure 6A–D · SHAP Interpretability</div>
+  <h1>SHAP可解释性分析 —— 打开机器学习的"黑箱"</h1>
+  <p>四个标签页分别对应SHAP分析常见的四种图：整体重要性排序(A)、变量方向蜂群图(B)、单变量非线性依赖图(C)、个体患者瀑布图(D)。以下均为<b>示意性模拟数据</b>，用来演示"怎么读"，非真实模型输出。</p>
+</header>
+<div class="tabs" id="tabs"></div>
+<div class="tabpanel">
+  <div class="inner active" id="tabA"></div>
+  <div class="inner" id="tabB"></div>
+  <div class="inner" id="tabC"></div>
+  <div class="inner" id="tabD"></div>
+</div>
+<script>
+const NS="http://www.w3.org/2000/svg";
+function el(tag,attrs){const e=document.createElementNS(NS,tag);for(const k in attrs)e.setAttribute(k,attrs[k]);return e;}
+
+const featureDefs = [
+ {k:'abx', name:'既往广谱抗生素使用天数', beta:0.140, mean:6, sd:6, dir:1, importance:0.42},
+ {k:'mech', name:'机械通气', beta:0.854, mean:0.35, sd:0.48, dir:1, importance:0.35, binary:true},
+ {k:'acuity', name:'病情严重度评分', beta:0.095, mean:18, sd:8, dir:1, importance:0.31},
+ {k:'icu', name:'既往ICU住院天数', beta:0.077, mean:8, sd:6, dir:1, importance:0.28},
+ {k:'immuno', name:'免疫抑制状态', beta:0.683, mean:0.20, sd:0.40, dir:1, importance:0.22, binary:true},
+ {k:'age', name:'年龄', beta:0.039, mean:62, sd:14, dir:1, importance:0.19, nonlinear:true},
+ {k:'alb', name:'血清白蛋白水平', beta:-0.073, mean:33, sd:6, dir:-1, importance:0.17}
+];
+
+// ---------- TAB A: importance bar ----------
+function buildTabA(){
+  const sorted=[...featureDefs].sort((a,b)=>b.importance-a.importance);
+  const maxImp = sorted[0].importance;
+  const svgH = 40+sorted.length*46;
+  const svg=el('svg',{viewBox:`0 0 480 ${svgH}`});
+  sorted.forEach((f,i)=>{
+    const y=30+i*46;
+    const w = f.importance/maxImp*300;
+    svg.appendChild(el('text',{x:0,y:y-6,'font-size':12.5,fill:'#1B2733'})).textContent=f.name;
+    svg.appendChild(el('rect',{x:0,y:y,width:300,height:16,fill:'#EEF1EC',rx:4}));
+    const bar = el('rect',{x:0,y:y,width:w,height:16,fill:f.dir>0?'#AF4238':'#22385C',rx:4});
+    svg.appendChild(bar);
+    svg.appendChild(el('text',{x:w+8,y:y+13,'font-size':11.5,fill:'#57626C'})).textContent=f.importance.toFixed(2);
+  });
+  const container=document.getElementById('tabA');
+  container.innerHTML=`<div><h3>Figure 6A · 变量重要性排序</h3><div class="sub">条形长度 = 该变量对模型预测的平均绝对贡献(mean |SHAP|)，红色=风险因素，蓝色=保护因素</div><div id="svgA-wrap"></div></div>
+  <div class="panel"><h3>该看哪里</h3><div class="box"><div class="t">解读</div>最上面几个变量是模型认为"最关键"的判断依据。可以对照Table4的OR值——通常OR越极端（远离1）、越显著的变量，这里的重要性也会排得靠前，两者互相印证。</div>
+  <div class="box"><div class="t">为什么需要</div>无论模型是Logistic回归还是随机森林、XGBoost这类"黑箱"模型，SHAP都能给出统一的重要性排名，弥补复杂模型不透明的短板。</div></div>`;
+  document.getElementById('svgA-wrap').appendChild(svg);
+}
+
+// ---------- TAB B: beeswarm ----------
+function buildTabB(){
+  const rowH=50, svgH=30+featureDefs.length*rowH+20;
+  const sorted=[...featureDefs].sort((a,b)=>b.importance-a.importance);
+  const svg=el('svg',{viewBox:`0 0 480 ${svgH}`});
+  const cx=240, scaleX=190;
+  svg.appendChild(el('line',{x1:cx,y1:10,x2:cx,y2:svgH-20,stroke:'#DCE1E0'}));
+  sorted.forEach((f,i)=>{
+    const y=40+i*rowH;
+    svg.appendChild(el('text',{x:0,y:y-14,'font-size':12,fill:'#1B2733'})).textContent=f.name;
+    svg.appendChild(el('line',{x1:0,y1:y,x2:480,y2:y,stroke:'#F0F2EE'}));
+    const N=26;
+    for(let j=0;j<N;j++){
+      const t = j/(N-1); // 0..1 feature value percentile
+      const jitter=(Math.random()-0.5)*14;
+      const shap = f.dir*(t-0.5)*2*f.importance + (Math.random()-0.5)*0.05;
+      const r = Math.round(59+(217-59)*t); // blue->red interpolation
+      const g = Math.round(111+(86-111)*t);
+      const b = Math.round(160+(74-160)*t);
+      const cxp = cx + shap*scaleX;
+      const cyp = y + jitter*0.6;
+      svg.appendChild(el('circle',{cx:cxp,cy:cyp,r:4,fill:`rgb(${r},${g},${b})`,opacity:0.75}));
+    }
+  });
+  const container=document.getElementById('tabB');
+  container.innerHTML=`<div><h3>Figure 6B · SHAP蜂群图</h3><div class="sub">每个点代表一位患者；横轴是该变量对这位患者预测结果的贡献(SHAP值)，颜色代表该变量的数值高低</div><div id="svgB-wrap"></div>
+  <div class="legend-scale"><span>数值低</span><div class="gradient-bar"></div><span>数值高</span></div></div>
+  <div class="panel"><h3>该看哪里</h3><div class="box"><div class="t">解读</div>看某一行里，红色点(数值高)是否都集中在右侧(正贡献，推高风险)——如果是，说明这个变量数值越高，风险越大，是清晰的正相关。反之如果红点集中在左侧(如血清白蛋白)，说明数值越高反而越安全，是保护因素。</div>
+  <div class="box"><div class="t">为什么需要</div>比A图更进一步，不仅告诉你"哪个变量重要"，还告诉你"数值高低如何影响风险方向"，相当于用一种更直观的方式重新呈现了Table4里的OR值信息。</div></div>`;
+  document.getElementById('svgB-wrap').appendChild(svg);
+}
+
+// ---------- TAB C: dependence plot ----------
+function dependenceData(fkey){
+  const f = featureDefs.find(x=>x.k===fkey);
+  const pts=[];
+  const N=40;
+  for(let i=0;i<N;i++){
+    const x = f.mean - f.sd*2 + (i/(N-1))*f.sd*4;
+    let shap;
+    if(f.nonlinear){
+      // age: flat until ~65 then accelerates
+      const t = Math.max(0, x-65)/30;
+      shap = f.dir*0.02*(x-f.mean)*0.15 + f.dir*0.55*Math.pow(t,1.6) - 0.15;
+    } else {
+      shap = f.beta*(x-f.mean)*0.6;
+    }
+    shap += (Math.random()-0.5)*0.06;
+    pts.push({x,shap});
+  }
+  return {f,pts};
+}
+function buildTabC(){
+  const contVars = featureDefs.filter(f=>!f.binary);
+  const container=document.getElementById('tabC');
+  container.innerHTML = `<div>
+    <h3>Figure 6C · SHAP依赖图</h3>
+    <div class="sub">选择一个连续变量，观察它的原始数值与SHAP贡献之间的关系形状（是否为直线，还是存在拐点）</div>
+    <select id="depSelect">${contVars.map(f=>`<option value="${f.k}">${f.name}</option>`).join('')}</select>
+    <div id="svgC-wrap"></div>
+  </div>
+  <div class="panel" id="depPanel"></div>`;
+  document.getElementById('depSelect').addEventListener('change', drawDependence);
+  drawDependence();
+}
+function drawDependence(){
+  const fkey = document.getElementById('depSelect').value;
+  const {f,pts} = dependenceData(fkey);
+  const svg=el('svg',{viewBox:'0 0 480 320'});
+  const pad=40, pw=480-pad*1.5, ph=320-pad*1.6;
+  const xs=pts.map(p=>p.x), ys=pts.map(p=>p.shap);
+  const xmin=Math.min(...xs), xmax=Math.max(...xs), ymin=Math.min(...ys)-0.05, ymax=Math.max(...ys)+0.05;
+  const px=v=>pad+(v-xmin)/(xmax-xmin)*pw;
+  const py=v=>pad+(ymax-v)/(ymax-ymin)*ph;
+  svg.appendChild(el('rect',{x:pad,y:pad,width:pw,height:ph,fill:'none',stroke:'#DCE1E0'}));
+  svg.appendChild(el('line',{x1:pad,y1:py(0),x2:pad+pw,y2:py(0),stroke:'#E4E7E2','stroke-dasharray':'3,3'}));
+  pts.forEach(p=>{
+    svg.appendChild(el('circle',{cx:px(p.x),cy:py(p.shap),r:4,fill: f.dir>0?'#AF4238':'#22385C',opacity:0.65}));
+  });
+  svg.appendChild(el('text',{x:pad+pw/2,y:320-6,'font-size':11.5,fill:'#57626C','text-anchor':'middle'})).textContent=f.name+' 原始数值';
+  const yl=el('text',{x:12,y:pad+ph/2,'font-size':11.5,fill:'#57626C','text-anchor':'middle',transform:`rotate(-90 12 ${pad+ph/2})`});yl.textContent='SHAP值(对预测的贡献)';svg.appendChild(yl);
+  document.getElementById('svgC-wrap').innerHTML='';
+  document.getElementById('svgC-wrap').appendChild(svg);
+  document.getElementById('depPanel').innerHTML = `<h3>该看哪里</h3>
+  <div class="box"><div class="t">形状解读</div>${f.nonlinear? '曲线在数值较低时几乎平坦，说明这个范围内变量变化对风险影响很小；超过某个"拐点"后SHAP值迅速上升，说明超过这个数值后风险会加速增长——这是传统Logistic回归的线性假设无法捕捉到的规律。' : '曲线大致呈直线趋势，说明这个变量和风险贡献之间接近线性关系，与Table4里恒定的OR值假设基本吻合。'}</div>
+  <div class="box"><div class="t">为什么需要</div>传统回归假设"效应处处一样"（OR值不变），但真实临床规律常常不是这样。依赖图能挖掘出更贴近真实生物学规律的非线性关系，是机器学习模型的优势之一。</div>`;
+}
+
+// ---------- TAB D: waterfall ----------
+const patients = {
+  low:{label:'低风险 · 年轻轻症患者', vals:{abx:0,mech:0,acuity:6,icu:1,immuno:0,age:35,alb:44}},
+  mid:{label:'中等风险 · 一般ICU患者', vals:{abx:5,mech:0,acuity:15,icu:5,immuno:0,age:60,alb:35}},
+  high:{label:'高风险 · 重症合并多因素患者', vals:{abx:16,mech:1,acuity:30,icu:14,immuno:1,age:80,alb:22}}
+};
+function buildTabD(){
+  const container=document.getElementById('tabD');
+  container.innerHTML = `<div>
+    <h3>Figure 6D · 个体患者SHAP瀑布图</h3>
+    <div class="sub">选择一个示例患者，观察模型是如何从"人群平均风险"一步步累加/扣减到这位患者的最终预测风险的</div>
+    <div class="chips" id="patientChips"></div>
+    <div id="svgD-wrap"></div>
+  </div>
+  <div class="panel" id="waterfallPanel"></div>`;
+  document.getElementById('patientChips').innerHTML = Object.keys(patients).map(k=>
+    `<div class="chip" data-k="${k}" onclick="drawWaterfall('${k}')">${patients[k].label}</div>`
+  ).join('');
+  drawWaterfall('mid');
+}
+function drawWaterfall(pk){
+  document.querySelectorAll('#patientChips .chip').forEach(c=>c.classList.toggle('active', c.dataset.k===pk));
+  const p = patients[pk];
+  const baseProb = 0.30;
+  const baseLogit = Math.log(baseProb/(1-baseProb));
+  const contribs = featureDefs.map(f=>{
+    const x = p.vals[f.k];
+    const c = f.beta*(x-f.mean);
+    return {name:f.name, val:c};
+  }).sort((a,b)=>Math.abs(b.val)-Math.abs(a.val));
+  let cum = baseLogit;
+  const steps = [{name:'人群平均风险基线', from:0, to:baseLogit, isBase:true}];
+  contribs.forEach(c=>{
+    const from=cum; cum+=c.val;
+    steps.push({name:c.name, from, to:cum, val:c.val});
+  });
+  const finalLogit = cum;
+  const finalProb = 1/(1+Math.exp(-finalLogit));
+
+  const svg=el('svg',{viewBox:`0 0 480 ${40+steps.length*36+30}`});
+  const pad=10, scaleX=34, cx=180;
+  svg.appendChild(el('line',{x1:cx,y1:20,x2:cx,y2:40+steps.length*36,stroke:'#DCE1E0'}));
+  steps.forEach((s,i)=>{
+    const y=40+i*36;
+    const x1=cx+s.from*scaleX, x2=cx+s.to*scaleX;
+    const color = s.isBase? '#93A09A' : (s.val>0? '#AF4238':'#1F6F63');
+    svg.appendChild(el('rect',{x:Math.min(x1,x2),y:y,width:Math.max(2,Math.abs(x2-x1)),height:18,fill:color,rx:3,opacity:0.85}));
+    svg.appendChild(el('text',{x:8,y:y+13,'font-size':11.5,fill:'#1B2733'})).textContent=s.name;
+    const lbl = s.isBase? `logit=${s.to.toFixed(2)}` : `${s.val>0?'+':''}${s.val.toFixed(2)}`;
+    svg.appendChild(el('text',{x:Math.max(x1,x2)+6,y:y+13,'font-size':10.5,fill:'#57626C'})).textContent=lbl;
+  });
+  document.getElementById('svgD-wrap').innerHTML='';
+  document.getElementById('svgD-wrap').appendChild(svg);
+  document.getElementById('waterfallPanel').innerHTML = `
+    <h3>${p.label}</h3>
+    <div class="stat"><span>人群平均风险(基线)</span><b>30.0%</b></div>
+    <div class="stat"><span>最终预测风险</span><b style="color:${finalProb>0.5?'#AF4238':'#1F6F63'}">${(finalProb*100).toFixed(1)}%</b></div>
+    <div class="box"><div class="t">怎么读这张图</div>从最上方"人群平均风险"出发，每一行代表一个变量的贡献：红色条向右延伸=推高风险，蓝色条向左延伸(或数值为负)=降低风险。条形越长，这个变量对这位患者的判断影响越大。全部累加后，就得到这位患者的最终预测风险。</div>
+    <div class="box"><div class="t">临床意义</div>这种个体化解释能让医生直接向患者/家属说明"为什么这位患者的风险是这个数字，主要是因为哪几项异常"，而不是只给一个孤零零、无法解释的百分比。</div>
+  `;
+}
+
+// ---------- tabs wiring ----------
+const tabDefs=[{k:'A',label:'A · 重要性排序'},{k:'B',label:'B · 蜂群图'},{k:'C',label:'C · 依赖图'},{k:'D',label:'D · 个体瀑布图'}];
+document.getElementById('tabs').innerHTML = tabDefs.map((t,i)=>`<div class="tab ${i===0?'active':''}" data-k="${t.k}" onclick="switchTab('${t.k}')">${t.label}</div>`).join('');
+function switchTab(k){
+  document.querySelectorAll('.tab').forEach(t=>t.classList.toggle('active', t.dataset.k===k));
+  document.querySelectorAll('.tabpanel > .inner').forEach(p=>p.classList.remove('active'));
+  document.getElementById('tab'+k).classList.add('active');
+}
+buildTabA(); buildTabB(); buildTabC(); buildTabD();
+</script>
+</body>
+</html>

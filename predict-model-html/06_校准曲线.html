@@ -1,0 +1,125 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Figure 4 · 校准曲线</title>
+<link href="https://fonts.googleapis.com/css2?family=Noto+Serif+SC:wght@700;900&family=Noto+Sans+SC:wght@400;500;700&family=IBM+Plex+Mono:wght@500&display=swap" rel="stylesheet">
+<style>
+:root{--bg:#F5F6F3;--surface:#fff;--ink:#1B2733;--soft:#57626C;--line:#DCE1E0;--teal:#1F6F63;--clay:#AF4238;--amber:#C6872B;--navy:#22385C;}
+*{box-sizing:border-box;}
+body{margin:0;background:var(--bg);color:var(--ink);font-family:'Noto Sans SC',sans-serif;}
+header{padding:40px 6vw 18px;border-bottom:1px solid var(--line);}
+.eyebrow{font-family:'IBM Plex Mono',monospace;font-size:12px;color:var(--clay);letter-spacing:.14em;text-transform:uppercase;}
+h1{font-family:'Noto Serif SC',serif;font-weight:900;font-size:clamp(24px,3vw,36px);margin:8px 0;}
+header p{color:var(--soft);max-width:720px;line-height:1.7;font-size:14.5px;}
+.wrap{padding:26px 6vw 70px;display:grid;grid-template-columns:1.3fr 1fr;gap:28px;align-items:start;}
+@media (max-width:980px){.wrap{grid-template-columns:1fr;}}
+.card{background:var(--surface);border:1px solid var(--line);border-radius:16px;padding:22px 24px;}
+.chips{display:flex;flex-wrap:wrap;gap:8px;margin-bottom:16px;}
+.chip{padding:8px 15px;border-radius:999px;border:1px solid var(--line);font-size:13px;cursor:pointer;background:#fff;color:var(--soft);}
+.chip.active{background:var(--navy);color:#fff;border-color:var(--navy);}
+svg{width:100%;height:auto;}
+.dotpoint{cursor:pointer;}
+.panel{position:sticky;top:20px;padding:24px 26px;}
+.panel h2{font-family:'Noto Serif SC',serif;font-size:19px;margin:6px 0 12px;}
+.k{font-family:'IBM Plex Mono',monospace;font-size:11px;color:var(--clay);text-transform:uppercase;letter-spacing:.08em;}
+.stat{display:flex;justify-content:space-between;padding:8px 0;border-bottom:1px dashed var(--line);font-size:14px;}
+.stat b{color:var(--navy);font-family:'IBM Plex Mono',monospace;}
+.box{background:#F0F2EE;border-left:3px solid var(--teal);border-radius:8px;padding:12px 15px;margin-top:14px;font-size:13.5px;line-height:1.7;}
+.box.warn{border-left-color:var(--clay);background:#FBF1EF;}
+.box .t{font-weight:700;color:var(--teal);margin-bottom:4px;}
+.box.warn .t{color:var(--clay);}
+</style>
+</head>
+<body>
+<header>
+  <div class="eyebrow">Figure 4 · Calibration Curve (Validation Set)</div>
+  <h1>校准曲线 —— 模型说的"70%风险"，真的是70%吗</h1>
+  <p>切换模型，观察各模型的预测概率(横轴)和实际发生比例(纵轴)是否贴合灰色对角线。点击图上的圆点，查看这个风险区间的具体人数和解读。圆点越大，代表落在这个区间的患者越多。以下为<b>示意性模拟数据</b>。</p>
+</header>
+<div class="wrap">
+  <div class="card">
+    <div class="chips" id="chips"></div>
+    <svg id="calSvg" viewBox="0 0 460 460"></svg>
+  </div>
+  <div class="card panel" id="panel">
+    <div class="k">点击图上任意圆点</div>
+    <h2>选择一个风险区间</h2>
+    <div class="box"><div class="t">怎么看这张图</div>曲线贴着对角线 = 校准好；曲线跑到对角线下方 = 模型"过度自信"（说的风险比实际更高）；跑到上方 = 模型"过于保守"（说的风险比实际更低）。</div>
+  </div>
+</div>
+<script>
+const models = {
+  LR:{name:'Logistic回归', dev:p=>0.015*Math.sin(p*8), note:'总体校准良好', quality:'good'},
+  RF:{name:'随机森林', dev:p=> p>0.4 ? -0.16*Math.pow((p-0.4)/0.6,1.3) : 0.03*p, note:'高风险区间明显"过度自信"', quality:'over'},
+  XGB:{name:'XGBoost', dev:p=> p>0.5 ? -0.09*Math.pow((p-0.5)/0.5,1.2) : 0.02*p, note:'高风险区间轻微"过度自信"，程度好于随机森林', quality:'mild'},
+  NN:{name:'神经网络', dev:p=> 0.10*(p-0.5)*-1, note:'低风险区间偏保守、高风险区间偏保守，呈系统性偏移', quality:'shift'}
+};
+let curModel='LR';
+const NS="http://www.w3.org/2000/svg";
+function el(tag,attrs){const e=document.createElementNS(NS,tag);for(const k in attrs)e.setAttribute(k,attrs[k]);return e;}
+const S=460,pad=44,plot=S-pad*1.6;
+function px(x){return pad+x*plot;}
+function py(y){return (S-pad*0.6)-y*plot;}
+
+const bins = [0.05,0.15,0.25,0.35,0.45,0.55,0.65,0.75,0.85,0.95];
+const counts = [8,14,19,22,18,15,11,7,4,2]; // 钟形分布，示意
+
+function draw(){
+  const svg = document.getElementById('calSvg');
+  svg.innerHTML='';
+  svg.appendChild(el('rect',{x:pad,y:py(1),width:plot,height:plot,fill:'none',stroke:'#DCE1E0'}));
+  svg.appendChild(el('line',{x1:px(0),y1:py(0),x2:px(1),y2:py(1),stroke:'#C7CDC9','stroke-width':1.6,'stroke-dasharray':'5,4'}));
+  for(let i=0;i<=5;i++){
+    const t=i/5;
+    const tx=el('text',{x:px(t),y:py(0)+18,'font-size':10,fill:'#93A09A','text-anchor':'middle'}); tx.textContent=t.toFixed(1); svg.appendChild(tx);
+    const ty=el('text',{x:px(0)-10,y:py(t)+3,'font-size':10,fill:'#93A09A','text-anchor':'end'}); ty.textContent=t.toFixed(1); svg.appendChild(ty);
+  }
+  const xl=el('text',{x:px(0.5),y:S-6,'font-size':11.5,fill:'#57626C','text-anchor':'middle'}); xl.textContent='模型预测的耐药概率'; svg.appendChild(xl);
+  const yl=el('text',{x:14,y:py(0.5),'font-size':11.5,fill:'#57626C','text-anchor':'middle',transform:`rotate(-90 14 ${py(0.5)})`}); yl.textContent='实际观察到的耐药比例'; svg.appendChild(yl);
+
+  const m = models[curModel];
+  let d='';
+  const pts=[];
+  bins.forEach((p,i)=>{
+    const obs = Math.min(0.99,Math.max(0.01, p+m.dev(p)));
+    pts.push({p,obs,n:counts[i]});
+    d += (i===0?'M':'L')+px(p).toFixed(1)+','+py(obs).toFixed(1)+' ';
+  });
+  svg.appendChild(el('path',{d:d,fill:'none',stroke:'#22385C','stroke-width':2}));
+  pts.forEach((pt,i)=>{
+    const r = 4+pt.n*0.35;
+    const c = el('circle',{cx:px(pt.p),cy:py(pt.obs),r:r,fill:'#22385C',opacity:0.85,class:'dotpoint'});
+    c.addEventListener('click',()=>selectBin(pt));
+    svg.appendChild(c);
+  });
+}
+function chipsRender(){
+  document.getElementById('chips').innerHTML = Object.keys(models).map(k=>
+    `<div class="chip ${k===curModel?'active':''}" onclick="setModel('${k}')">${models[k].name}</div>`
+  ).join('');
+}
+function setModel(k){ curModel=k; chipsRender(); draw();
+  document.getElementById('panel').innerHTML = `<div class="k">${models[k].name}</div><h2>整体校准情况</h2>
+  <div class="box ${models[k].quality==='good'?'':'warn'}"><div class="t">总体评价</div>${models[k].note}</div>
+  <div class="box">点击图上的圆点，查看具体某个风险区间的人数和偏差程度。</div>`;
+}
+function selectBin(pt){
+  const diff = ((pt.obs-pt.p)*100).toFixed(1);
+  const dir = pt.obs<pt.p ? '模型高估了风险（过度自信）' : (pt.obs>pt.p ? '模型低估了风险（偏保守）' : '预测与实际几乎一致');
+  document.getElementById('panel').innerHTML = `
+    <div class="k">风险区间 ${(pt.p*100-10).toFixed(0)}%–${(pt.p*100+10).toFixed(0)}%</div>
+    <h2>预测 ${(pt.p*100).toFixed(0)}% vs 实际 ${(pt.obs*100).toFixed(0)}%</h2>
+    <div class="stat"><span>落在此区间的患者数</span><b>${pt.n} 例</b></div>
+    <div class="stat"><span>预测概率</span><b>${(pt.p*100).toFixed(0)}%</b></div>
+    <div class="stat"><span>实际发生比例</span><b>${(pt.obs*100).toFixed(0)}%</b></div>
+    <div class="stat"><span>偏差</span><b style="color:${Math.abs(diff)>8?'#AF4238':'#1F6F63'}">${diff>0?'+':''}${diff} 个百分点</b></div>
+    <div class="box ${Math.abs(diff)>8?'warn':''}"><div class="t">解读</div>${dir}。${Math.abs(diff)>8?'偏差较大，医生在这个风险区间参考这个模型的具体百分比时要格外谨慎。':'偏差较小，这个区间的预测数字是相对可信的。'}</div>
+  `;
+}
+chipsRender();
+draw();
+setModel('LR');
+</script>
+</body>
+</html>

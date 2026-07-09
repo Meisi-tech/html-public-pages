@@ -1,0 +1,160 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Table 4 &amp; Figure 2 · 多因素回归与列线图计算器</title>
+<link href="https://fonts.googleapis.com/css2?family=Noto+Serif+SC:wght@700;900&family=Noto+Sans+SC:wght@400;500;700&family=IBM+Plex+Mono:wght@500&display=swap" rel="stylesheet">
+<style>
+:root{--bg:#F5F6F3;--surface:#fff;--ink:#1B2733;--soft:#57626C;--line:#DCE1E0;--teal:#1F6F63;--clay:#AF4238;--amber:#C6872B;--navy:#22385C;}
+*{box-sizing:border-box;}
+body{margin:0;background:var(--bg);color:var(--ink);font-family:'Noto Sans SC',sans-serif;}
+header{padding:40px 6vw 18px;border-bottom:1px solid var(--line);}
+.eyebrow{font-family:'IBM Plex Mono',monospace;font-size:12px;color:var(--clay);letter-spacing:.14em;text-transform:uppercase;}
+h1{font-family:'Noto Serif SC',serif;font-weight:900;font-size:clamp(24px,3vw,36px);margin:8px 0;}
+header p{color:var(--soft);max-width:720px;line-height:1.7;font-size:14.5px;}
+.wrap{padding:26px 6vw 70px;display:grid;grid-template-columns:1fr 1.15fr;gap:28px;align-items:start;}
+@media (max-width:980px){.wrap{grid-template-columns:1fr;}}
+.card{background:var(--surface);border:1px solid var(--line);border-radius:16px;padding:22px 24px;margin-bottom:20px;}
+.card h3{font-family:'Noto Serif SC',serif;font-size:16px;margin:0 0 14px;color:var(--navy);}
+.field{margin-bottom:16px;}
+.field label{display:flex;justify-content:space-between;font-size:13.5px;margin-bottom:6px;color:var(--ink);}
+.field label b{color:var(--navy);font-family:'IBM Plex Mono',monospace;}
+input[type=range]{width:100%;accent-color:var(--navy);}
+.switch-row{display:flex;align-items:center;justify-content:space-between;padding:9px 0;border-bottom:1px dashed var(--line);}
+.switch-row:last-child{border-bottom:none;}
+.switch{position:relative;width:44px;height:24px;background:#DDE3E0;border-radius:20px;cursor:pointer;transition:.2s;flex-shrink:0;}
+.switch.on{background:var(--clay);}
+.switch::after{content:'';position:absolute;top:3px;left:3px;width:18px;height:18px;background:#fff;border-radius:50%;transition:.2s;}
+.switch.on::after{left:23px;}
+.result-card{background:var(--navy);color:#fff;border-radius:16px;padding:28px;text-align:center;}
+.result-card .risk-num{font-family:'Noto Serif SC',serif;font-weight:900;font-size:52px;line-height:1;margin:6px 0;}
+.result-card .risk-label{font-size:13px;opacity:.75;font-family:'IBM Plex Mono',monospace;text-transform:uppercase;letter-spacing:.08em;}
+.gauge-track{height:14px;background:rgba(255,255,255,.15);border-radius:8px;margin:16px 0 6px;overflow:hidden;}
+.gauge-fill{height:100%;border-radius:8px;transition:width .2s;}
+.pts-row{display:grid;grid-template-columns:1fr 60px;align-items:center;gap:10px;padding:8px 0;border-bottom:1px dashed var(--line);font-size:13px;}
+.pts-bar-track{height:9px;background:#EEF1EC;border-radius:5px;overflow:hidden;}
+.pts-bar-fill{height:100%;border-radius:5px;background:var(--teal);}
+.pts-bar-fill.neg{background:var(--navy);}
+.total-bar{height:16px;background:#EEF1EC;border-radius:8px;overflow:hidden;margin:12px 0;}
+.total-fill{height:100%;background:linear-gradient(90deg,#1F6F63,#C6872B,#AF4238);}
+table.or-table{width:100%;border-collapse:collapse;font-size:13px;margin-top:6px;}
+.or-table th{text-align:left;padding:8px 6px;color:var(--navy);border-bottom:1px solid var(--line);font-size:12px;}
+.or-table td{padding:8px 6px;border-bottom:1px solid var(--line);}
+.or-table td.or{font-family:'IBM Plex Mono',monospace;}
+.box{background:#F0F2EE;border-left:3px solid var(--teal);border-radius:8px;padding:12px 15px;margin-top:10px;font-size:13px;line-height:1.7;}
+.box .t{font-weight:700;color:var(--teal);margin-bottom:4px;}
+</style>
+</head>
+<body>
+<header>
+  <div class="eyebrow">Table 4 &amp; Figure 2 · Nomogram Calculator</div>
+  <h1>多因素回归 + 列线图 —— 亲手算一次患者的耐药风险</h1>
+  <p>调整左侧的患者信息滑块/开关，右侧会实时显示每个变量贡献了多少"分数"、总分是多少、最终对应的耐药风险概率是多少——这正是列线图在临床上的用法。以下OR值与系数均为<b>示意性模拟数据</b>。</p>
+</header>
+<div class="wrap">
+  <div>
+    <div class="card">
+      <h3>患者信息输入</h3>
+      <div class="field"><label>年龄 <b id="v-age">60 岁</b></label><input type="range" id="age" min="18" max="95" value="60"></div>
+      <div class="field"><label>病情严重度评分 (acuity_score) <b id="v-acuity">15 分</b></label><input type="range" id="acuity" min="0" max="40" value="15"></div>
+      <div class="field"><label>既往广谱抗生素使用天数 <b id="v-abx">5 天</b></label><input type="range" id="abx" min="0" max="30" value="5"></div>
+      <div class="field"><label>既往ICU住院天数 <b id="v-icu">5 天</b></label><input type="range" id="icu" min="0" max="30" value="5"></div>
+      <div class="field"><label>血清白蛋白水平 <b id="v-alb">35 g/L</b></label><input type="range" id="alb" min="20" max="50" step="0.5" value="35"></div>
+      <div class="switch-row"><span>机械通气</span><div class="switch" id="mech" onclick="toggleSwitch('mech')"></div></div>
+      <div class="switch-row"><span>免疫抑制状态</span><div class="switch" id="immuno" onclick="toggleSwitch('immuno')"></div></div>
+    </div>
+    <div class="card">
+      <h3>Table 4 · 多因素Logistic回归结果</h3>
+      <table class="or-table">
+        <thead><tr><th>变量</th><th>OR</th><th>95% CI</th></tr></thead>
+        <tbody id="orBody"></tbody>
+      </table>
+      <div class="box"><div class="t">怎么看OR</div>OR>1为危险因素，数值越大风险越高；OR<1为保护因素（如白蛋白），数值越高风险反而越低。</div>
+    </div>
+  </div>
+  <div>
+    <div class="result-card">
+      <div class="risk-label">预测耐药风险</div>
+      <div class="risk-num" id="riskPct">23.1%</div>
+      <div class="gauge-track"><div class="gauge-fill" id="gaugeFill" style="width:23%"></div></div>
+      <div style="font-size:12px;opacity:.7;">总分 <span id="totalPts">125</span> / 参考满分 ≈406</div>
+    </div>
+    <div class="card" style="margin-top:20px;">
+      <h3>Figure 2 · 各变量得分明细（列线图核心逻辑）</h3>
+      <div id="ptsList"></div>
+      <div class="box"><div class="t">列线图怎么用</div>每个变量按其数值换算成一个分数，所有分数相加得到"总分"，再对照总分—风险概率的换算关系，就能读出这位患者的预测风险——完全可以脱离电脑，用一张纸完成。</div>
+    </div>
+  </div>
+</div>
+<script>
+const vars = {
+  age:{name:'年龄', beta:0.039, min:18, max:95, unit:'岁', or:1.04, ci:'1.01–1.07'},
+  acuity:{name:'病情严重度评分', beta:0.095, min:0, max:40, unit:'分', or:1.10, ci:'1.05–1.15'},
+  abx:{name:'既往广谱抗生素使用天数', beta:0.140, min:0, max:30, unit:'天', or:1.15, ci:'1.09–1.22'},
+  icu:{name:'既往ICU住院天数', beta:0.077, min:0, max:30, unit:'天', or:1.08, ci:'1.03–1.13'},
+  alb:{name:'血清白蛋白水平', beta:-0.073, min:20, max:50, unit:'g/L', or:0.93, ci:'0.89–0.97'},
+  mech:{name:'机械通气 (是 vs 否)', beta:0.854, min:0, max:1, unit:'', or:2.35, ci:'1.42–3.89'},
+  immuno:{name:'免疫抑制状态 (是 vs 否)', beta:0.683, min:0, max:1, unit:'', or:1.98, ci:'1.18–3.31'}
+};
+const maxRange = 4.2; // abx_days range * beta
+const intercept = -3.5;
+let baselineSum = 0;
+for(const k in vars){
+  const v = vars[k];
+  baselineSum += v.beta>=0 ? v.beta*v.min : v.beta*v.max;
+}
+const newIntercept = intercept + baselineSum;
+
+let state = {age:60, acuity:15, abx:5, icu:5, alb:35, mech:0, immuno:0};
+
+function toggleSwitch(id){
+  state[id] = state[id]?0:1;
+  document.getElementById(id).classList.toggle('on', !!state[id]);
+  compute();
+}
+['age','acuity','abx','icu','alb'].forEach(id=>{
+  document.getElementById(id).addEventListener('input', e=>{
+    state[id] = +e.target.value;
+    document.getElementById('v-'+id).textContent = state[id] + (vars[id].unit? ' '+vars[id].unit : '');
+    compute();
+  });
+});
+
+function pointsOf(k){
+  const v = vars[k], x = state[k];
+  if(v.beta>=0) return v.beta*(x-v.min)/maxRange*100;
+  return Math.abs(v.beta)*(v.max-x)/maxRange*100;
+}
+
+function compute(){
+  let total = 0;
+  const rows = [];
+  for(const k in vars){
+    const p = pointsOf(k);
+    total += p;
+    rows.push({k,name:vars[k].name,p});
+  }
+  const logit = newIntercept + total*(maxRange/100);
+  const prob = 1/(1+Math.exp(-logit));
+  document.getElementById('riskPct').textContent = (prob*100).toFixed(1)+'%';
+  document.getElementById('totalPts').textContent = total.toFixed(0);
+  const gaugeColor = prob<0.15? '#1F6F63' : prob<0.4? '#C6872B' : '#AF4238';
+  document.getElementById('gaugeFill').style.width = Math.min(100,prob*100)+'%';
+  document.getElementById('gaugeFill').style.background = gaugeColor;
+  const maxBar = 45;
+  document.getElementById('ptsList').innerHTML = rows.map(r=>{
+    const w = Math.min(100, Math.abs(r.p)/maxBar*100);
+    return `<div class="pts-row"><div>${r.name}<div class="pts-bar-track"><div class="pts-bar-fill ${r.p<0?'neg':''}" style="width:${w}%"></div></div></div><div style="text-align:right;font-family:'IBM Plex Mono',monospace;">${r.p.toFixed(1)}分</div></div>`;
+  }).join('');
+}
+
+function renderOR(){
+  document.getElementById('orBody').innerHTML = Object.values(vars).map(v=>
+    `<tr><td>${v.name}</td><td class="or">${v.or}</td><td class="or">${v.ci}</td></tr>`
+  ).join('');
+}
+renderOR();
+compute();
+</script>
+</body>
+</html>

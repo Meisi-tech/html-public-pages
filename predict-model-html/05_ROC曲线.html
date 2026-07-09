@@ -1,0 +1,174 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Figure 3 · ROC 曲线</title>
+<link href="https://fonts.googleapis.com/css2?family=Noto+Serif+SC:wght@700;900&family=Noto+Sans+SC:wght@400;500;700&family=IBM+Plex+Mono:wght@500&display=swap" rel="stylesheet">
+<style>
+:root{--bg:#F5F6F3;--surface:#fff;--ink:#1B2733;--soft:#57626C;--line:#DCE1E0;--teal:#1F6F63;--clay:#AF4238;--amber:#C6872B;--navy:#22385C;}
+*{box-sizing:border-box;}
+body{margin:0;background:var(--bg);color:var(--ink);font-family:'Noto Sans SC',sans-serif;}
+header{padding:40px 6vw 18px;border-bottom:1px solid var(--line);}
+.eyebrow{font-family:'IBM Plex Mono',monospace;font-size:12px;color:var(--clay);letter-spacing:.14em;text-transform:uppercase;}
+h1{font-family:'Noto Serif SC',serif;font-weight:900;font-size:clamp(24px,3vw,36px);margin:8px 0;}
+header p{color:var(--soft);max-width:720px;line-height:1.7;font-size:14.5px;}
+.wrap{padding:26px 6vw 70px;display:grid;grid-template-columns:1.3fr 1fr;gap:28px;align-items:start;}
+@media (max-width:980px){.wrap{grid-template-columns:1fr;}}
+.card{background:var(--surface);border:1px solid var(--line);border-radius:16px;padding:22px 24px;margin-bottom:20px;}
+.chips{display:flex;flex-wrap:wrap;gap:8px;margin-bottom:14px;}
+.chip{padding:7px 13px;border-radius:999px;border:1px solid var(--line);font-size:12.5px;cursor:pointer;background:#fff;color:var(--soft);}
+.chip.on{color:#fff;}
+svg{width:100%;height:auto;}
+select{width:100%;padding:9px;border-radius:9px;border:1px solid var(--line);font-size:14px;margin-bottom:14px;}
+input[type=range]{width:100%;accent-color:var(--clay);}
+.stat{display:flex;justify-content:space-between;padding:8px 0;border-bottom:1px dashed var(--line);font-size:14px;}
+.stat b{color:var(--navy);font-family:'IBM Plex Mono',monospace;}
+.confmat{display:grid;grid-template-columns:repeat(3,1fr);gap:4px;margin-top:14px;font-size:12.5px;text-align:center;}
+.confmat div{padding:10px 4px;border-radius:8px;background:#F0F2EE;}
+.confmat .hd{background:transparent;font-weight:700;color:var(--navy);}
+.confmat .tp{background:#DDEDE7;color:#1F6F63;font-weight:700;}
+.confmat .tn{background:#DDEDE7;color:#1F6F63;font-weight:700;}
+.confmat .fp{background:#FBE7E4;color:#AF4238;font-weight:700;}
+.confmat .fn{background:#FBE7E4;color:#AF4238;font-weight:700;}
+.box{background:#F0F2EE;border-left:3px solid var(--teal);border-radius:8px;padding:12px 15px;margin-top:16px;font-size:13.5px;line-height:1.7;}
+.box .t{font-weight:700;color:var(--teal);margin-bottom:4px;}
+</style>
+</head>
+<body>
+<header>
+  <div class="eyebrow">Figure 3 · ROC Curve (Validation Set)</div>
+  <h1>ROC 曲线 —— 曲线越靠左上角，模型越会"分辨"</h1>
+  <p>用下方按钮勾选想比较的模型；选择一个模型并拖动滑块，模拟在曲线上移动"判断阈值"，观察灵敏度、特异度和混淆矩阵如何此消彼长。以下为<b>示意性模拟数据</b>（验证集 n=120，其中耐药36例，非耐药84例）。</p>
+</header>
+<div class="wrap">
+  <div class="card">
+    <div class="chips" id="chips"></div>
+    <svg id="rocSvg" viewBox="0 0 460 460"></svg>
+  </div>
+  <div>
+    <div class="card">
+      <h3 style="margin:0 0 10px;font-family:'Noto Serif SC',serif;font-size:16px;color:var(--navy);">拖动阈值点</h3>
+      <select id="focusModel"></select>
+      <input type="range" id="slider" min="0" max="100" value="30">
+      <div style="display:flex;justify-content:space-between;font-family:'IBM Plex Mono',monospace;font-size:11.5px;color:var(--soft);"><span>阈值更严格（少报警）</span><span>阈值更宽松（多报警）</span></div>
+      <div class="stat"><span>灵敏度 Sensitivity</span><b id="sensVal">—</b></div>
+      <div class="stat"><span>特异度 Specificity</span><b id="specVal">—</b></div>
+      <div class="stat"><span>PPV</span><b id="ppvVal">—</b></div>
+      <div class="stat"><span>NPV</span><b id="npvVal">—</b></div>
+      <div class="confmat" id="confmat"></div>
+    </div>
+    <div class="box" id="explainBox"><div class="t">解读</div>拖动滑块，观察"宁可错杀"和"不可冤枉"之间的取舍。</div>
+  </div>
+</div>
+<script>
+const models = [
+ {id:'LR',name:'Logistic回归',auc:0.77,color:'#22385C'},
+ {id:'KNN',name:'K近邻',auc:0.69,color:'#8CA0B8'},
+ {id:'RF',name:'随机森林',auc:0.76,color:'#1F6F63'},
+ {id:'DT',name:'决策树',auc:0.68,color:'#9FBDB2'},
+ {id:'NN',name:'神经网络',auc:0.74,color:'#C6872B'},
+ {id:'XGB',name:'XGBoost',auc:0.80,color:'#AF4238'},
+ {id:'LGB',name:'LightGBM',auc:0.79,color:'#D98A82'}
+];
+let active = new Set(['LR','RF','XGB']);
+const NS="http://www.w3.org/2000/svg";
+function el(tag,attrs){const e=document.createElementNS(NS,tag);for(const k in attrs)e.setAttribute(k,attrs[k]);return e;}
+function kOf(auc){return auc/(1-auc);}
+function tprOf(fpr,k){return Math.pow(fpr,1/k);}
+
+const svg = document.getElementById('rocSvg');
+const S=460, pad=44, plot=S-pad*1.6;
+function px(fpr){return pad+fpr*plot;}
+function py(tpr){return (S-pad*0.6)-tpr*plot;}
+
+function drawStatic(){
+  svg.innerHTML='';
+  // axes
+  svg.appendChild(el('rect',{x:pad,y:py(1),width:plot,height:plot,fill:'none',stroke:'#DCE1E0'}));
+  svg.appendChild(el('line',{x1:px(0),y1:py(0),x2:px(1),y2:py(1),stroke:'#DCE1E0','stroke-dasharray':'4,3'}));
+  for(let i=0;i<=5;i++){
+    const t=i/5;
+    const tx=el('text',{x:px(t),y:py(0)+18,'font-size':10,fill:'#93A09A','text-anchor':'middle'}); tx.textContent=t.toFixed(1); svg.appendChild(tx);
+    const ty=el('text',{x:px(0)-10,y:py(t)+3,'font-size':10,fill:'#93A09A','text-anchor':'end'}); ty.textContent=t.toFixed(1); svg.appendChild(ty);
+  }
+  const xl=el('text',{x:px(0.5),y:S-6,'font-size':11.5,fill:'#57626C','text-anchor':'middle'}); xl.textContent='1 − 特异度 (假阳性率)'; svg.appendChild(xl);
+  const yl=el('text',{x:14,y:py(0.5),'font-size':11.5,fill:'#57626C','text-anchor':'middle',transform:`rotate(-90 14 ${py(0.5)})`}); yl.textContent='灵敏度 (真阳性率)'; svg.appendChild(yl);
+
+  models.forEach(m=>{
+    if(!active.has(m.id)) return;
+    const k = kOf(m.auc);
+    let d='';
+    for(let i=0;i<=60;i++){
+      const fpr=i/60;
+      const tpr=tprOf(fpr,k);
+      d += (i===0?'M':'L')+px(fpr).toFixed(1)+','+py(tpr).toFixed(1)+' ';
+    }
+    svg.appendChild(el('path',{d:d,fill:'none',stroke:m.color,'stroke-width':2.4,opacity:0.9}));
+    const lx=el('text',{x:px(0.62),y:py(tprOf(0.62,k))-6,'font-size':11,fill:m.color,'font-family':'IBM Plex Mono, monospace'});
+    lx.textContent=`${m.name} AUC=${m.auc.toFixed(2)}`;
+    svg.appendChild(lx);
+  });
+  // focus point
+  const focus = document.getElementById('focusModel').value;
+  const fm = models.find(m=>m.id===focus);
+  if(fm && active.has(fm.id)){
+    const k=kOf(fm.auc);
+    const fpr = +document.getElementById('slider').value/100;
+    const tpr = tprOf(fpr,k);
+    const pt = el('circle',{cx:px(fpr),cy:py(tpr),r:6,fill:'#fff',stroke:fm.color,'stroke-width':3});
+    svg.appendChild(pt);
+  }
+}
+
+document.getElementById('chips').innerHTML = models.map(m=>
+  `<div class="chip ${active.has(m.id)?'on':''}" id="chip-${m.id}" style="${active.has(m.id)?`background:${m.color};border-color:${m.color}`:''}" onclick="toggleModel('${m.id}')">${m.name}</div>`
+).join('');
+function toggleModel(id){
+  if(active.has(id)) active.delete(id); else active.add(id);
+  const m = models.find(x=>x.id===id);
+  const c = document.getElementById('chip-'+id);
+  c.classList.toggle('on');
+  c.style.background = active.has(id)? m.color:'';
+  c.style.borderColor = active.has(id)? m.color:'';
+  drawStatic();
+}
+document.getElementById('focusModel').innerHTML = models.map(m=>`<option value="${m.id}">${m.name}</option>`).join('');
+document.getElementById('focusModel').value='LR';
+document.getElementById('focusModel').addEventListener('change', ()=>{ drawStatic(); updateStats(); });
+document.getElementById('slider').addEventListener('input', ()=>{ drawStatic(); updateStats(); });
+
+const valN=120, resistantN=36, nonResistantN=84;
+function updateStats(){
+  const focus = document.getElementById('focusModel').value;
+  const fm = models.find(m=>m.id===focus);
+  const k = kOf(fm.auc);
+  const fpr = +document.getElementById('slider').value/100;
+  const tpr = tprOf(fpr,k);
+  const spec = 1-fpr;
+  const TP = Math.round(tpr*resistantN);
+  const FN = resistantN-TP;
+  const FP = Math.round(fpr*nonResistantN);
+  const TN = nonResistantN-FP;
+  const ppv = TP/(TP+FP) || 0;
+  const npv = TN/(TN+FN) || 0;
+  document.getElementById('sensVal').textContent = (tpr*100).toFixed(1)+'%';
+  document.getElementById('specVal').textContent = (spec*100).toFixed(1)+'%';
+  document.getElementById('ppvVal').textContent = (ppv*100).toFixed(1)+'%';
+  document.getElementById('npvVal').textContent = (npv*100).toFixed(1)+'%';
+  document.getElementById('confmat').innerHTML = `
+    <div class="hd"></div><div class="hd">实际耐药</div><div class="hd">实际非耐药</div>
+    <div class="hd">预测耐药</div><div class="tp">TP ${TP}</div><div class="fp">FP ${FP}</div>
+    <div class="hd">预测非耐药</div><div class="fn">FN ${FN}</div><div class="tn">TN ${TN}</div>
+  `;
+  let msg;
+  const slv = +document.getElementById('slider').value;
+  if(slv<20) msg = '阈值设得很严格：只有模型非常确信的患者才会被判为"耐药"。特异度高、误报少，但灵敏度较低，容易漏掉一部分真正耐药的患者。';
+  else if(slv>70) msg = '阈值设得很宽松：几乎风险稍高就判为"耐药"。灵敏度很高、很少漏诊，但特异度下降，会有更多非耐药患者被"误报"，可能导致不必要的强效抗生素使用。';
+  else msg = '这是一个相对折中的阈值，灵敏度和特异度之间取得平衡，具体该偏向哪一侧，需要结合临床场景（漏诊耐药 vs 过度用药，哪个代价更高）来决定。';
+  document.getElementById('explainBox').innerHTML = '<div class="t">解读</div>'+msg;
+}
+drawStatic();
+updateStats();
+</script>
+</body>
+</html>
