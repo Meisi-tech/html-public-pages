@@ -1,0 +1,286 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>研究流程图 · 队列纳入与分析路径</title>
+<link href="https://fonts.googleapis.com/css2?family=Noto+Sans+SC:wght@400;500;700;900&family=IBM+Plex+Mono:wght@500&display=swap" rel="stylesheet">
+<style>
+:root{--ink:#1F2328;--soft:#5B6570;--line:#D9DCDE;--bg:#FAFAF9;
+  --green-fill:#CFEAD6;--green-stroke:#4C9A6B;
+  --orange-fill:#FDF1D3;--orange-stroke:#DDA23A;
+  --blue-fill:#D8E7F6;--blue-stroke:#5B8FC7;
+  --purple-fill:#EADCF1;--purple-stroke:#9A72B0;
+  --gray-fill:#EDEDED;--gray-stroke:#8B8F93;}
+*{box-sizing:border-box;}
+body{margin:0;background:var(--bg);color:var(--ink);font-family:'Noto Sans SC',sans-serif;}
+header{padding:34px 6vw 16px;border-bottom:1px solid var(--line);}
+.eyebrow{font-family:'IBM Plex Mono',monospace;font-size:12px;color:var(--soft);letter-spacing:.12em;text-transform:uppercase;}
+h1{font-weight:900;font-size:clamp(20px,2.6vw,30px);margin:8px 0;}
+header p{color:var(--soft);max-width:780px;line-height:1.7;font-size:14px;}
+.wrap{padding:26px 4vw 80px;display:grid;grid-template-columns:1fr 330px;gap:24px;align-items:start;}
+@media (max-width:1000px){.wrap{grid-template-columns:1fr;}}
+.diagram-card{background:#fff;border:1px solid var(--line);border-radius:8px;padding:18px 16px;}
+svg{width:100%;height:auto;font-family:'Noto Sans SC',sans-serif;}
+.node{cursor:pointer;}
+.node .box{transition:filter .15s, stroke-width .15s;}
+.node.active .box{stroke-width:2.6;filter:drop-shadow(0 3px 8px rgba(31,35,40,.18));}
+.node:hover .box{stroke-width:2;}
+.node text{fill:var(--ink);}
+.node text.title{font-weight:700;font-size:12.5px;}
+.node text.title.emph{font-weight:900;font-size:13px;}
+.node text.sub{font-size:10.5px;fill:#33383D;}
+.excl-title{font-weight:700;font-size:12px;}
+.excl-item{font-size:10.3px;fill:#3A3F44;}
+.split-label{font-size:11.5px;fill:var(--soft);font-weight:500;}
+.panel{position:sticky;top:20px;background:#fff;border:1px solid var(--line);border-radius:8px;padding:24px 24px;min-height:440px;}
+.panel .k{font-family:'IBM Plex Mono',monospace;font-size:11px;color:var(--soft);text-transform:uppercase;letter-spacing:.07em;}
+.panel h2{font-weight:900;font-size:19px;margin:8px 0 12px;line-height:1.4;}
+.box2{background:#F4F5F3;border-left:3px solid var(--green-stroke);border-radius:6px;padding:11px 14px;margin-top:12px;font-size:13px;line-height:1.7;}
+.box2 .t{font-weight:700;color:#2F6B48;margin-bottom:4px;font-size:12.5px;}
+.legend{display:flex;flex-wrap:wrap;gap:12px;margin-top:14px;font-size:11px;color:var(--soft);font-family:'IBM Plex Mono',monospace;}
+.legend span{display:inline-flex;align-items:center;gap:6px;}
+.sw{width:12px;height:12px;border-radius:3px;border:1px solid rgba(0,0,0,.15);}
+</style>
+</head>
+<body>
+<header>
+  <div class="eyebrow">Study Flow Diagram · 队列构建与分析路径</div>
+  <h1>ICU耐药风险预测模型 · 研究流程图</h1>
+  <p>参照SCI论文常见的队列流程图样式绘制：绿色为人群/队列节点，橙色为剔除标准，蓝色为训练集内的建模流程，紫色为验证集的独立评估说明，灰色为最终的性能评估维度。点击任意方框查看详细解释。以下排除标准与例数为<b>示意性设定</b>，用于演示图表结构，非真实研究数据。</p>
+</header>
+<div class="wrap">
+  <div class="diagram-card">
+    <svg id="flow" viewBox="0 0 1000 1520"></svg>
+    <div class="legend">
+      <span><i class="sw" style="background:#CFEAD6;border-color:#4C9A6B"></i>队列 / 分组</span>
+      <span><i class="sw" style="background:#FDF1D3;border-color:#DDA23A"></i>剔除标准</span>
+      <span><i class="sw" style="background:#D8E7F6;border-color:#5B8FC7"></i>训练集建模流程</span>
+      <span><i class="sw" style="background:#EADCF1;border-color:#9A72B0"></i>验证集独立评估</span>
+      <span><i class="sw" style="background:#EDEDED;border-color:#8B8F93"></i>性能评估维度</span>
+    </div>
+  </div>
+  <div class="panel" id="panel">
+    <div class="k">点击流程图任意方框</div>
+    <h2>开始探索</h2>
+    <div class="box2"><div class="t">提示</div>流程图从上到下：人群筛查 → 剔除标准 → 最终队列 → 按7:3拆分训练/验证集 → 训练集内完成变量筛选与建模 → 验证集独立评估 → 汇总为五个维度的性能评估。</div>
+  </div>
+</div>
+<script>
+const NS="http://www.w3.org/2000/svg";
+function el(tag,attrs){const e=document.createElementNS(NS,tag);for(const k in attrs)e.setAttribute(k,attrs[k]);return e;}
+const svg=document.getElementById('flow');
+const defs=el('defs',{});
+const marker=el('marker',{id:'arrow',markerWidth:8,markerHeight:8,refX:6,refY:3,orient:'auto',markerUnits:'strokeWidth'});
+marker.appendChild(el('path',{d:'M0,0 L0,6 L7,3 z',fill:'#3A3F44'}));
+defs.appendChild(marker);
+svg.appendChild(defs);
+
+function line(x1,y1,x2,y2,arrow){
+  const a={x1,y1,x2,y2,stroke:'#3A3F44','stroke-width':1.4};
+  if(arrow) a['marker-end']='url(#arrow)';
+  svg.appendChild(el('line',a));
+}
+function branchDown(xParent,yParentBottom,childXs,yChildTop){
+  const yMid=(yParentBottom+yChildTop)/2;
+  line(xParent,yParentBottom,xParent,yMid,false);
+  line(Math.min(...childXs),yMid,Math.max(...childXs),yMid,false);
+  childXs.forEach(cx=>line(cx,yMid,cx,yChildTop,true));
+}
+function mergeAt(children,yMid,xParent,yParentTop){
+  // children: array of {x, yBottom}
+  children.forEach(c=>line(c.x,c.yBottom,c.x,yMid,false));
+  const xs=children.map(c=>c.x);
+  line(Math.min(...xs),yMid,Math.max(...xs),yMid,false);
+  line(xParent,yMid,xParent,yParentTop,true);
+}
+function wrapChars(text,maxChars){
+  const lines=[]; let cur='';
+  for(const ch of text){ cur+=ch; if(cur.length>=maxChars){lines.push(cur);cur='';} }
+  if(cur) lines.push(cur);
+  return lines;
+}
+function box(id,x,y,w,h,title,subLines,fill,stroke,emph){
+  const g=el('g',{class:'node',id:'n-'+id});
+  g.appendChild(el('rect',{class:'box',x,y,width:w,height:h,rx:6,fill,stroke,'stroke-width':1.6}));
+  const hasSub = subLines && subLines.length;
+  const titleY = hasSub ? y+22 : y+h/2+4;
+  const t=el('text',{class:'title'+(emph?' emph':''),x:x+w/2,y:titleY,'text-anchor':'middle'});
+  t.textContent=title; g.appendChild(t);
+  if(hasSub){
+    subLines.forEach((ln,i)=>{
+      const s=el('text',{class:'sub',x:x+w/2,y:titleY+16+i*13,'text-anchor':'middle'});
+      s.textContent=ln; g.appendChild(s);
+    });
+  }
+  g.addEventListener('click',()=>select(id));
+  svg.appendChild(g);
+}
+function exclBox(id,x,y,w,h,heading,items,fill,stroke){
+  const g=el('g',{class:'node',id:'n-'+id});
+  g.appendChild(el('rect',{class:'box',x,y,width:w,height:h,rx:6,fill,stroke,'stroke-width':1.6}));
+  const ht=el('text',{class:'excl-title',x:x+16,y:y+22});ht.textContent=heading;g.appendChild(ht);
+  let cy=y+42;
+  items.forEach(it=>{
+    wrapChars(it, Math.floor((w-32)/6.1)).forEach(ln=>{
+      const lt=el('text',{class:'excl-item',x:x+16,y:cy});lt.textContent=ln;g.appendChild(lt);
+      cy+=13;
+    });
+    cy+=3;
+  });
+  g.addEventListener('click',()=>select(id));
+  svg.appendChild(g);
+}
+
+// ============ LAYOUT ============
+const CX=470;
+
+box('screened',300,20,340,80,'筛查的ICU住院患者',['n = 558'],'#CFEAD6','#4C9A6B');
+line(640,60,770,60,true);
+exclBox('excluded',770,15,215,235,'剔除 (n = 157)',[
+ '(1) 入ICU不足24小时即转出或死亡，无法留取完整微生物学样本 (n=42)',
+ '(2) 48小时内缺乏药敏结果回报 (n=25)',
+ '(3) 关键预测变量缺失且无法从原始记录补全 (n=31)',
+ '(4) 入ICU前已明确诊断为耐药菌感染 (n=19)',
+ '(5) 培养标本采集时间晚于预设预测窗口 (n=24)',
+ '(6) 病历记录不完整，无法确认结局分类 (n=16)'
+],'#FDF1D3','#DDA23A');
+line(CX,100,CX,140,true);
+
+box('cohort',300,140,340,80,'纳入分析的最终队列',['n = 401','耐药 121 (30.2%)；非耐药 280 (69.8%)'],'#CFEAD6','#4C9A6B');
+
+const splitLabelY=252;
+const lbl=el('text',{x:CX,y:splitLabelY,class:'split-label','text-anchor':'middle'});
+lbl.textContent='预设 7:3 分组（按 set 列分组，Table 1 已验证两组基线均衡）';
+svg.appendChild(lbl);
+branchDown(CX,220,[210,730],300);
+box('train',40,300,340,80,'训练集',['n = 281','耐药 85；非耐药 196'],'#CFEAD6','#4C9A6B');
+box('valid',560,300,340,80,'验证集',['n = 120','耐药 36；非耐药 84'],'#CFEAD6','#4C9A6B');
+
+// training chain (blue)
+line(210,380,210,420,true);
+box('table2',40,420,340,64,'训练集分组比较：耐药 vs 非耐药',['Table 2 · 单因素分析'],'#D8E7F6','#5B8FC7');
+line(210,484,210,520,true);
+box('fig1',40,520,340,64,'LASSO回归特征筛选',['Figure 1 · 10折交叉验证'],'#D8E7F6','#5B8FC7');
+line(210,584,210,620,true);
+box('table4',40,620,340,64,'临床可解释性评估 + 多因素Logistic回归',['Table 4 · OR值与95%CI'],'#D8E7F6','#5B8FC7');
+line(210,684,210,720,true);
+box('finalvars',40,720,340,100,'最终入选七项预测因子',
+  ['年龄、机械通气、既往ICU住院天数、','病情严重度评分、免疫抑制状态、','既往抗生素使用天数、血清白蛋白'],
+  '#D8E7F6','#5B8FC7',true);
+line(210,820,210,860,true);
+box('fig2',40,860,340,64,'列线图构建',['Figure 2 · 基于多因素Logistic回归'],'#D8E7F6','#5B8FC7');
+line(210,924,210,960,true);
+box('models',40,960,340,90,'机器学习模型开发',['LR · KNN · RF · DT · NN · XGBoost · LightGBM','Step 7'],'#D8E7F6','#5B8FC7');
+line(210,1050,210,1090,true);
+box('cv',40,1090,340,64,'5折交叉验证与超参数调优',['所有模型统一验证流程'],'#D8E7F6','#5B8FC7');
+
+// validation independent (purple)
+line(730,380,730,620,true);
+box('independent',560,620,340,90,'独立验证集',['不参与特征筛选、调参或阈值优化','（Table 1 已确认两组基线可比）'],'#EADCF1','#9A72B0');
+
+// merge into performance box (gray)
+mergeAt([{x:210,yBottom:1154},{x:730,yBottom:710}],1200,CX,1230);
+box('performance',300,1230,340,80,'性能评估与模型解释',['验证集表现为准；Bootstrap估计不确定性(95%CI)'],'#EDEDED','#8B8F93');
+
+// 5 category boxes
+const catXs=[31,221,411,601,791];
+branchDown(CX,1310,catXs.map(x=>x+89),1370);
+box('discrimination',31,1370,178,110,'区分能力',['ROC、AUC(95%CI)、灵敏度、','特异度、PPV、NPV、F1','Table 5 + Figure 3'],'#EDEDED','#8B8F93');
+box('calibration',221,1370,178,110,'校准度',['Brier评分、Hosmer-Lemeshow','检验、校准曲线斜率/截距','Figure 4'],'#EDEDED','#8B8F93');
+box('utility',411,1370,178,110,'临床实用性',['决策曲线分析与净获益','','Figure 5'],'#EDEDED','#8B8F93');
+box('robustness',601,1370,178,110,'稳健性',['1000次Bootstrap重抽样','估计验证集95%CI',''],'#EDEDED','#8B8F93');
+box('interpretability',791,1370,178,110,'可解释性',['SHAP全局重要性、蜂群图、','瀑布图、力图','Figure 6A–D'],'#EDEDED','#8B8F93');
+
+// ============ detail content ============
+const details = {
+ screened:{cat:'队列构建 · 起点',title:'筛查的ICU住院患者 (n = 558)',body:[
+   ['做什么','按照研究时间窗口，对某ICU全部住院患者进行初筛，作为纳入分析前的候选人群。'],
+   ['为什么需要','明确"从多大范围的人群里挑选研究对象"，是评价研究外推性和判断选择偏倚的第一步。']
+ ]},
+ excluded:{cat:'剔除标准',title:'剔除 (n = 157)',body:[
+   ['做什么','按6条预设标准逐条剔除不符合入组条件的患者，如样本缺失、结局无法判定、关键变量缺失等。'],
+   ['为什么需要','清晰列出每一条剔除标准及对应例数，是SCI论文流程图的核心要求之一——让读者能够判断最终队列是否存在选择偏倚，以及研究结论能推广到多大范围的人群。'],
+   ['怎么看','各条剔除理由的例数总和，应正好等于"筛查人数"与"最终队列人数"之差（本例：558－401＝157）。']
+ ]},
+ cohort:{cat:'队列构建 · 终点',title:'纳入分析的最终队列 (n = 401)',body:[
+   ['做什么','完成剔除后，剩余401例患者进入正式分析，其中耐药121例(30.2%)、非耐药280例(69.8%)。'],
+   ['为什么需要','这是后续所有统计分析和建模的基础人群，也是文中报告的"分母"。']
+ ]},
+ train:{cat:'数据拆分',title:'训练集 (n = 281)',body:[
+   ['做什么','按预设的7:3比例，用于变量筛选、模型训练和参数调优的一部分数据。'],
+   ['为什么需要','相当于"练习题"——模型在这部分数据上学习规律，不能直接用它来评价模型的真实能力。']
+ ]},
+ valid:{cat:'数据拆分',title:'验证集 (n = 120)',body:[
+   ['做什么','完全独立于训练过程的一部分数据，只用于最终评估模型表现。'],
+   ['为什么需要','相当于"没做过的考题"，是判断模型是否真的学到规律、而非死记硬背训练数据的关键。']
+ ]},
+ table2:{cat:'Table 2 · 阶段一',title:'训练集分组比较：耐药 vs 非耐药',body:[
+   ['做什么','在训练集内部比较耐药组与非耐药组的基线特征差异。'],
+   ['为什么需要','为后续LASSO变量筛选提供第一批候选线索，也是与既往文献、临床经验对照的起点。']
+ ]},
+ fig1:{cat:'Figure 1 · 阶段二',title:'LASSO回归特征筛选',body:[
+   ['做什么','用10折交叉验证的LASSO回归，从候选变量中自动挑出预测力最强的一批。'],
+   ['为什么需要','临床上不可能同时参考几十个指标；LASSO像"海选"，自动淘汰冗余变量，避免模型过于复杂。']
+ ]},
+ table4:{cat:'Table 4 · 阶段二',title:'临床可解释性评估 + 多因素Logistic回归',body:[
+   ['做什么','结合临床意义对LASSO结果做二次筛选，再用双向逐步Logistic回归确定最终纳入的变量并计算OR值。'],
+   ['为什么需要','纯数据驱动的筛选有时会选出临床上难以解释的变量组合，加入专业判断可以让最终模型更贴近临床逻辑、更易被医生接受。']
+ ]},
+ finalvars:{cat:'关键节点',title:'最终入选七项预测因子',body:[
+   ['是什么','年龄、机械通气、既往ICU住院天数、病情严重度评分、免疫抑制状态、既往广谱抗生素使用天数、血清白蛋白水平。'],
+   ['为什么关键','这七项就是最终列线图和所有模型共同使用的输入变量——数据筛选到建模的"交接点"。']
+ ]},
+ fig2:{cat:'Figure 2 · 阶段二',title:'列线图构建',body:[
+   ['做什么','基于多因素Logistic回归结果，把七项预测因子转化为可手算的列线图(Nomogram)。'],
+   ['为什么需要','医生查房时不一定有电脑，列线图让预测模型可以"一张纸"直接使用，是研究成果面向临床落地的关键产物。']
+ ]},
+ models:{cat:'Step 7 · 阶段二',title:'机器学习模型开发',body:[
+   ['做什么','同时训练LR、KNN、RF、DT、NN、XGBoost、LightGBM七种模型。'],
+   ['为什么需要','不同模型各有优劣，同台竞技才能选出真正适合这份数据、适合临床使用的模型，而不是只依赖一种方法的主观选择。']
+ ]},
+ cv:{cat:'阶段二',title:'5折交叉验证与超参数调优',body:[
+   ['做什么','在训练集内部反复切分5份，轮流训练/小测验，为每个模型寻找最佳参数设置。'],
+   ['为什么需要','防止模型"死记硬背"训练数据（过拟合），确保后续在验证集上的表现更能反映真实能力。']
+ ]},
+ independent:{cat:'验证集 · 关键设计',title:'独立验证集：不参与特征筛选、调参或阈值优化',body:[
+   ['做什么','验证集在整个建模过程中被"隔离"，直到最后评估阶段才被使用一次。'],
+   ['为什么需要','这是避免"信息泄露"的关键设计——如果验证集提前参与了变量筛选或调参，评估结果就会虚高，无法反映模型面对新患者的真实表现。']
+ ]},
+ performance:{cat:'汇总节点',title:'性能评估与模型解释',body:[
+   ['做什么','以验证集表现为准，从五个维度全面评估最优模型，并用Bootstrap重抽样估计结果的不确定性。'],
+   ['为什么需要','单一指标（比如只看AUC）不足以判断一个模型是否真正适合临床使用，需要多维度综合评估。']
+ ]},
+ discrimination:{cat:'评估维度 · Table5+Fig3',title:'区分能力 Discrimination',body:[
+   ['做什么','计算ROC曲线下面积AUC(附95%CI)、灵敏度、特异度、PPV、NPV、F1值。'],
+   ['临床意义','衡量模型"能不能把耐药和非耐药患者分开"，是最基础也是最常报告的性能指标。']
+ ]},
+ calibration:{cat:'评估维度 · Fig4',title:'校准度 Calibration',body:[
+   ['做什么','用Brier评分、Hosmer-Lemeshow检验和校准曲线（斜率、截距）检验预测概率是否与实际发生比例吻合。'],
+   ['临床意义','AUC高只说明排序对，校准度回答"模型说的70%风险是不是真的70%"，直接关系到这个百分比能不能讲给患者听。']
+ ]},
+ utility:{cat:'评估维度 · Fig5',title:'临床实用性 Clinical utility',body:[
+   ['做什么','用决策曲线分析(DCA)，比较模型相对"全部治疗/全部不治疗"两种极端策略的净获益。'],
+   ['临床意义','回答终极问题：这个模型用在临床决策里，真的能让患者获益吗？而不只是数学上好看。']
+ ]},
+ robustness:{cat:'评估维度',title:'稳健性 Robustness',body:[
+   ['做什么','对验证集做1000次Bootstrap重抽样，估计各项性能指标的95%置信区间。'],
+   ['临床意义','单次评估结果可能受抽样偶然性影响，重抽样能说明这个模型的表现有多"稳"，结果是否可信。']
+ ]},
+ interpretability:{cat:'评估维度 · Fig6A-D',title:'可解释性 Interpretability',body:[
+   ['做什么','用SHAP方法给出全局变量重要性、蜂群图、单变量依赖图和个体患者瀑布图/力图。'],
+   ['临床意义','打开机器学习模型的"黑箱"，让医生理解模型判断依据，提升临床信任度和可用性。']
+ ]}
+};
+function select(id){
+  document.querySelectorAll('.node').forEach(n=>n.classList.remove('active'));
+  document.getElementById('n-'+id).classList.add('active');
+  const d = details[id];
+  document.getElementById('panel').innerHTML = `
+    <div class="k">${d.cat}</div>
+    <h2>${d.title}</h2>
+    ${d.body.map(([k,v])=>`<div class="box2"><div class="t">${k}</div>${v}</div>`).join('')}
+  `;
+}
+</script>
+</body>
+</html>
